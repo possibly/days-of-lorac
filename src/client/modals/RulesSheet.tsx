@@ -17,7 +17,7 @@ export function RulesSheet({ onClose }: { onClose: () => void }): JSX.Element {
           <h3>Goal</h3>
           <p>Be first to the victory target: {VP_TARGETS[4]} points with four players, {VP_TARGETS[3]} with three, {VP_TARGETS[2]} with two.</p>
           <h3>Turn</h3>
-          <p>Draw to five. Roll 2d6. Then play cards, build, trade, and buy one card. End turn discards your hand and play area.</p>
+          <p>Draw to five. Roll 2d6. Then play cards, build, trade, and buy one card. Played cards go to your discard at end of turn. Unplayed cards stay in your hand, but every kept card is one less card you draw next turn.</p>
           <h3>Production</h3>
           <p>Settlements take one, cities take two from every hex matching the roll. The robber blocks its hex.</p>
           <h3>Seven</h3>
@@ -27,7 +27,7 @@ export function RulesSheet({ onClose }: { onClose: () => void }): JSX.Element {
         </section>
         <section>
           <h3>Cards</h3>
-          <p>Every player has a private deck. Buy one card per turn; it goes to your discard and cannot be played until a later turn. Charters score from the moment you buy them and are dead draws forever.</p>
+          <p>Every player has a private deck. Buy one card per turn; it goes to your discard and cannot be played until a later turn. Charters score from the moment you buy them and are dead draws forever; a drawn charter is discarded at end of turn so it never clogs your hand.</p>
           <h3>Trade</h3>
           <p>Bank and port trades are unlimited. One open offer at a time: while it waits, nobody can open another. Recipients accept or decline, and the first accept executes it.</p>
           <h3>Awards</h3>

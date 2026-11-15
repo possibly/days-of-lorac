@@ -429,6 +429,11 @@ appearance, so a draw effect is worth the average card value in the deck, about
 1.3, and one renown is valued at 1.5 to account for the chance it never reaches
 the award threshold.
 
+The formula assumes the player plays all five cards. Since unplayed cards now
+stay in hand, a player who keeps k cards draws 5-k and plays less, so real
+income can sit below the table. Treat the numbers as the value of playing the
+card every time you draw it, which is still the right way to price a buy.
+
 The useful reading: a card bought on turn 6 has about 6 to 8 turns to pay back.
 Anything paying back in 5 or fewer is a strong buy. Anything over 8 is a trap
 at that point in the game, and correct in the first three turns.

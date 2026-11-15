@@ -96,8 +96,9 @@ const BASE: BotWeights = {
 
 export const BOT_WEIGHTS: Record<'easy' | 'normal' | 'hard', BotWeights> = {
   // Deckhand: noisy opening, first legal build, buys whatever is cheap, never
-  // trades with players, robber on the leader's best hex with no self-harm
-  // check. Still finishes every game.
+  // trades with players, robber on the leader's best hex. `robberSelf` is near
+  // zero, so the hard `selfHarmTier` rule in robber.ts is what keeps it off its
+  // own hexes. Still finishes every game.
   easy: {
     ...BASE,
     discipline: 0,

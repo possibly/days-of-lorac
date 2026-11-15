@@ -71,6 +71,7 @@ export function viewFor(
     playedCount: player.played.length,
     played: copyCards(player.played),
     purchases: player.purchases,
+    bought: { ...player.bought },
   }));
 
   const buildings: GameView['buildings'] = {};

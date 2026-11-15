@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { GAME_VERSION } from '@shared/version';
 import type { GameAction, GameView, Seat } from '@shared/types';
-import { client } from './net/socket';
-import type { LinkState } from './net/socket';
+import { client, OFFLINE_MODE } from './net/store';
+import type { LinkState } from './net/store';
 import { useGame } from './net/useGame';
 import { errorLine } from './net/errors';
 import {
@@ -30,6 +30,7 @@ import type { ToastItem } from './ui/Toasts';
 import { Button } from './ui/Button';
 import { setSoundEnabled, playCue } from './sound/audio';
 import type { FixtureMode, FixtureSession } from './dev/fixture';
+import { installDiagnostics } from './dev/diagnose';
 
 type Screen = 'title' | 'solo' | 'create' | 'join' | 'connecting' | 'resume' | 'lobby' | 'game';
 
@@ -93,6 +94,12 @@ export default function App(): JSX.Element {
     setLastSession(loadResumable());
   }, []);
 
+  // ?diag=1 pins an on-device measurement panel over the game. Inert otherwise.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('diag') === null) return;
+    installDiagnostics();
+  }, []);
+
   // One delegated click cue: no cue for buttons that were disabled.
   useEffect(() => {
     const onClick = (event: MouseEvent): void => {
@@ -114,6 +121,9 @@ export default function App(): JSX.Element {
       void loadFixture(fixtureKind);
       return;
     }
+
+    // The offline build has no server, no rooms, and nothing to resume.
+    if (OFFLINE_MODE) return;
 
     const room = params.get('room');
     if (room === null) return;
@@ -218,7 +228,7 @@ export default function App(): JSX.Element {
       setFixtureView(null);
       return;
     }
-    if (snapshot.roomCode) client.leaveRoom();
+    if (OFFLINE_MODE || snapshot.roomCode) client.leaveRoom();
     setRoomParam(null);
     setJoinNotice(null);
     setJoinLocked(false);
@@ -342,6 +352,7 @@ export default function App(): JSX.Element {
         onForget={forget}
         onRules={() => setRulesOpen(true)}
         session={lastSession}
+        offline={OFFLINE_MODE}
         link={snapshot.link}
         serverVersion={snapshot.serverVersion}
         clientVersion={GAME_VERSION}
@@ -396,9 +407,10 @@ export default function App(): JSX.Element {
     setName(person);
     saveName(person);
     if (fixtureMode) return;
+    client.quickPlay(person, seats, difficulty);
+    if (OFFLINE_MODE) return;
     setBusyLabel('Seating the bots…');
     setScreen('connecting');
-    client.quickPlay(person, seats, difficulty);
   }
 
   function startCreate(person: string, maxPlayers: 2 | 3 | 4, difficulty: 'easy' | 'normal' | 'hard'): void {

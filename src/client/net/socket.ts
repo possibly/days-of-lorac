@@ -520,10 +520,10 @@ class GameClient {
   }
 }
 
-export const client = new GameClient();
+export const onlineClient = new GameClient();
 
 // Dev-only handle for QA scripts and console debugging. Never in a build.
 if ((import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV && typeof window !== 'undefined') {
-  (window as unknown as { __lorac?: GameClient }).__lorac = client;
+  (window as unknown as { __lorac?: GameClient }).__lorac = onlineClient;
 }
 export { wsUrl };

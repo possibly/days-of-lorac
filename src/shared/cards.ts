@@ -238,6 +238,11 @@ export function getCard(defId: string): CardDef {
   return card;
 }
 
+/** True for cards that ask their player to move the robber when played. */
+export function cardMovesRobber(def: CardDef): boolean {
+  return def.choice === 'robber' || def.effects.some((effect) => effect.kind === 'optionalRobber');
+}
+
 export const STARTING_CARDS = CARD_DEFS.filter((card) => card.kind === 'starting');
 export const MARKET_CARDS = CARD_DEFS.filter((card) => card.kind === 'market');
 export const CHARTER_CARDS = CARD_DEFS.filter((card) => card.kind === 'charter');

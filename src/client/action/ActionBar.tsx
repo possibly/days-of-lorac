@@ -1,7 +1,9 @@
+import { useEffect, useRef, useState } from 'react';
 import type { GameView, PartialResources, Resource, Seat } from '@shared/types';
 import { RESOURCES } from '@shared/types';
 import type { Pending } from './types';
 import { Button } from '../ui/Button';
+import { ResourceIcon } from '../ui/icons';
 import { SeatCoin } from '../ui/SeatCoin';
 
 interface ActionBarProps {
@@ -9,11 +11,16 @@ interface ActionBarProps {
   pending: Pending;
   selection: { kind: 'vertex' | 'edge' | 'hex'; id: string } | null;
   victim: Seat | null;
-  purchaseUsed: boolean;
+  /** True while the road/settlement/city picker is open. */
+  buildOpen: boolean;
+  letters: boolean;
   onRoll: () => void;
   onEndTurn: () => void;
   onOpenTrade: () => void;
   onOpenMarket: () => void;
+  onOpenBuild: () => void;
+  onCloseBuild: () => void;
+  onPickBuild: (kind: 'road' | 'settlement' | 'city') => void;
   onDiscard: () => void;
   onMoveRobber: () => void;
   onVictim: (seat: Seat) => void;
@@ -29,6 +36,18 @@ interface ActionBarProps {
 
 const WORD: Record<Resource, string> = { wood: 'wood', brick: 'brick', sheep: 'sheep', wheat: 'wheat', ore: 'ore' };
 
+const BUILD_COST: Record<'road' | 'settlement' | 'city', PartialResources> = {
+  road: { wood: 1, brick: 1 },
+  settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 },
+  city: { wheat: 2, ore: 3 },
+};
+
+const BUILD_WORD: Record<'road' | 'settlement' | 'city', string> = {
+  road: 'Road',
+  settlement: 'Settlement',
+  city: 'City',
+};
+
 function describe(map: PartialResources): string {
   const parts = RESOURCES.filter((resource) => (map[resource] ?? 0) > 0).map((resource) => `${map[resource]} ${WORD[resource]}`);
   return parts.length > 0 ? parts.join(' and ') : 'nothing';
@@ -39,10 +58,9 @@ function describe(map: PartialResources): string {
  * control maps to an entry in `view.legal`; every disabled control says why.
  */
 export function ActionBar(props: ActionBarProps): JSX.Element {
-  const { view, pending, selection, victim, purchaseUsed, frozen } = props;
+  const { view, pending, selection, victim, frozen, buildOpen, letters } = props;
   const lost = Boolean(frozen);
   const legal = view.legal;
-  const you = view.players[view.you];
   const active = view.players[view.currentSeat];
   const activeName = active?.name ?? 'the table';
   const mustDiscard = legal.discard?.required ?? 0;
@@ -50,7 +68,6 @@ export function ActionBar(props: ActionBarProps): JSX.Element {
   const incoming = offer && offer.from !== view.you && offer.to.includes(view.you);
   const myOffer = offer && offer.from === view.you;
 
-  const holding = you ? RESOURCES.reduce((sum, resource) => sum + you.resources[resource], 0) : 0;
 
   // On tablet and phone the market lives in a drawer, so waiting players need
   // a way to open it. Desktop already shows the rail, hence the CSS hiding.
@@ -132,8 +149,9 @@ export function ActionBar(props: ActionBarProps): JSX.Element {
         {robberCard && selection?.kind === 'hex' ? (
           <Button variant="ghost" onClick={props.onSkipRobber}>Skip the move</Button>
         ) : null}
-        <Button variant="ghost" onClick={props.onCancel}>Cancel card</Button>
+        <Button variant="ghost" onClick={props.onCancel}>{pending.type === 'build' ? 'Cancel build' : 'Cancel card'}</Button>
       </>,
+      robberCard && selection?.kind === 'hex' ? 'has-victims' : '',
     );
   }
 
@@ -220,36 +238,45 @@ export function ActionBar(props: ActionBarProps): JSX.Element {
   }
 
   const affordable = legal.build.affordable;
-  const empty =
-    legal.playable.length === 0 &&
-    legal.buyable.length === 0 &&
-    !affordable.road &&
-    !affordable.settlement &&
-    !affordable.city &&
-    legal.bankTrades.length === 0;
 
-  const prompt = purchaseUsed
-    ? 'One purchase per turn, and you have used it.'
-    : empty
-      ? 'No affordable build or purchase. Ending turn.'
-      : (you?.playedCount ?? 0) > 0
-        ? 'Hand played. Build, trade, or end the turn.'
-        : 'Play cards, build, trade, or buy one card.';
+  // The action phase carries no text at all. Every prompt it used to show was
+  // either restating the buttons or telling the player their turn was over
+  // ("Play cards, build, trade, or buy one card.", "Hand played.", "No
+  // affordable build or purchase. Ending turn.", "One purchase per turn, and you
+  // have used it."). The purchase state is visible on the market's own chip.
 
-  const subline = empty ? null : holding >= 9
-    ? `${holding} resources held, discard risk at a 7`
-    : bankSubline(view);
-
-  if (empty) {
+  // ----- build picker ------------------------------------------------------
+  if (buildOpen) {
     return (
-      <div className="action-bar">
+      <div className="action-bar is-build">
         <div className="prompt-wrap">
-          <p className="prompt-line">{prompt}</p>
-          {subline ? <p className="prompt-sub">{subline}</p> : null}
+          <p className="prompt-line">Build what?</p>
         </div>
+        <Button variant="ghost" onClick={props.onCloseBuild}>Cancel</Button>
         <div className="action-buttons">
-          <Button variant="ghost" className="rail-open-only" onClick={props.onOpenMarket} disabled={lost} reason={lost ? 'Connection lost. Reconnecting.' : null}>Market</Button>
-          <Button variant="primary" className="end-turn pulse" onClick={props.onEndTurn} disabled={lost} reason={lost ? 'Connection lost. Reconnecting.' : null}>End turn</Button>
+          <div className="build-chips" role="group" aria-label="Choose a build">
+            {(['road', 'settlement', 'city'] as const).map((kind) => {
+              const spots = kind === 'road' ? legal.build.roads : kind === 'settlement' ? legal.build.settlements : legal.build.cities;
+              const disabled = lost || !affordable[kind] || spots.length === 0;
+              const reason = lost
+                ? 'Connection lost. Reconnecting.'
+                : !affordable[kind]
+                  ? `Not enough resources for a ${kind}.`
+                  : spots.length === 0
+                    ? `Nowhere legal to put a ${kind} right now.`
+                    : null;
+              return (
+                <BuildChip
+                  key={kind}
+                  kind={kind}
+                  letters={letters}
+                  disabled={disabled}
+                  reason={reason}
+                  onPick={() => props.onPickBuild(kind)}
+                />
+              );
+            })}
+          </div>
         </div>
       </div>
     );
@@ -257,11 +284,8 @@ export function ActionBar(props: ActionBarProps): JSX.Element {
 
   return (
     <div className="action-bar">
-      <div className="prompt-wrap">
-        <p className="prompt-line">{prompt}</p>
-        {subline ? <p className="prompt-sub">{subline}</p> : null}
-      </div>
       <div className="action-buttons">
+        <Button variant="secondary" onClick={props.onOpenBuild} disabled={lost} reason={lost ? 'Connection lost. Reconnecting.' : null}>Build</Button>
         <Button variant="secondary" onClick={props.onOpenTrade} disabled={lost} reason={lost ? 'Connection lost. Reconnecting.' : null}>Trade</Button>
         <Button variant="secondary" onClick={props.onOpenMarket} disabled={lost} reason={lost ? 'Connection lost. Reconnecting.' : null}>Buy</Button>
         <Button variant="primary" onClick={props.onEndTurn} disabled={!legal.canEndTurn || lost} reason={lost ? 'Connection lost. Reconnecting.' : !legal.canEndTurn ? 'You cannot end the turn right now.' : null}>
@@ -271,9 +295,9 @@ export function ActionBar(props: ActionBarProps): JSX.Element {
     </div>
   );
 
-  function bar(promptText: string, buttons: JSX.Element | null): JSX.Element {
+  function bar(promptText: string, buttons: JSX.Element | null, className = ''): JSX.Element {
     return (
-      <div className="action-bar">
+      <div className={`action-bar${className ? ` ${className}` : ''}`}>
         <p className="prompt-line">{promptText}</p>
         <div className="action-buttons">{buttons}</div>
       </div>
@@ -281,16 +305,49 @@ export function ActionBar(props: ActionBarProps): JSX.Element {
   }
 }
 
-function bankSubline(view: GameView): string | null {
-  const option = view.legal.bankTrades[0];
-  if (!option) return null;
-  if (option.count === 2) return `${capitalize(option.give)} port 2:1`;
-  if (option.count === 3) return 'Generic port 3:1';
-  return 'Bank 4:1';
-}
-
-function capitalize(value: string): string {
-  return `${value[0]?.toUpperCase() ?? ''}${value.slice(1)}`;
+/**
+ * One build choice in the action bar: name on the left, cost pips on the right.
+ * Carries its own disabled reason, the same way Button does, so a phone player
+ * gets told why the chip is grey instead of nothing happening.
+ */
+function BuildChip({
+  kind,
+  letters,
+  disabled,
+  reason,
+  onPick,
+}: {
+  kind: 'road' | 'settlement' | 'city';
+  letters: boolean;
+  disabled: boolean;
+  reason: string | null;
+  onPick: () => void;
+}): JSX.Element {
+  const cost = BUILD_COST[kind];
+  const reasonId = `build-reason-${kind}`;
+  return (
+    <button
+      type="button"
+      className="build-chip"
+      disabled={disabled}
+      title={reason ?? undefined}
+      aria-describedby={disabled && reason ? reasonId : undefined}
+      onClick={onPick}
+    >
+      <span className="build-chip-name">{BUILD_WORD[kind]}</span>
+      <span className="build-chip-cost">
+        {RESOURCES.filter((resource) => (cost[resource] ?? 0) > 0).map((resource) => (
+          <span key={resource} className={`cost-pip cost-${resource}`}>
+            <span className="pip-n">{cost[resource]}</span>
+            <ResourceIcon resource={resource} size={10} letters={letters} />
+          </span>
+        ))}
+      </span>
+      {disabled && reason ? (
+        <span id={reasonId} className="sr-only">{reason}</span>
+      ) : null}
+    </button>
+  );
 }
 
 function VictimButtons({
@@ -304,9 +361,25 @@ function VictimButtons({
   victim: Seat | null;
   onVictim: (seat: Seat) => void;
 }): JSX.Element | null {
+  const row = useRef<HTMLDivElement>(null);
+  const [scrollable, setScrollable] = useState(false);
+
+  // On a narrow bar the chip row scrolls sideways. A fade at the right edge is
+  // the only cue that another player is waiting out there, so it is only on
+  // when the row actually overflows.
+  useEffect(() => {
+    const node = row.current;
+    if (!node) return undefined;
+    const sync = (): void => setScrollable(node.scrollWidth > node.clientWidth + 1);
+    sync();
+    const observer = new ResizeObserver(sync);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [seats.length]);
+
   if (seats.length === 0) return null;
   return (
-    <div className="victim-chips" role="group" aria-label="Choose a victim">
+    <div ref={row} className={`victim-chips${scrollable ? ' is-scrollable' : ''}`} role="group" aria-label="Choose a victim">
       {seats.map((seat) => {
         const player = view.players[seat];
         if (!player) return null;

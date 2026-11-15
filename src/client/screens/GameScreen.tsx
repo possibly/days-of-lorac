@@ -8,7 +8,6 @@ import { ActionBar } from '../action/ActionBar';
 import type { Pending } from '../action/types';
 import { BoardFrame } from '../board/BoardFrame';
 import type { BoardMode, BoardTarget, Floater } from '../board/BoardSvg';
-import { edgeLabel, vertexLabel } from '../board/BoardSvg';
 import { indexBoard } from '../board/geometry';
 import { HandDock } from '../hand/HandDock';
 import { MarketTab } from '../market/MarketTab';
@@ -46,6 +45,9 @@ export interface GameScreenProps {
   onToggleLetters: () => void;
 }
 
+/** How long a production floater stays on the board, matching `floatUp`. */
+const FLOATER_LIFE_MS = 4300;
+
 export function GameScreen({
   view,
   you,
@@ -72,6 +74,10 @@ export function GameScreen({
   }, [connected, sendAction]);
 
   const [pending, setPending] = useState<Pending>(null);
+  // The build picker (road / settlement / city) sits between the action bar and
+  // board targeting: picking a kind sets `pending`, which turns on the legal
+  // vertex and edge rings.
+  const [buildOpen, setBuildOpen] = useState(false);
   const [selection, setSelection] = useState<BoardTarget | null>(null);
   const [victim, setVictim] = useState<Seat | null>(null);
   const [inspectedIid, setInspectedIid] = useState<number | null>(null);
@@ -82,6 +88,7 @@ export function GameScreen({
   const [floaters, setFloaters] = useState<Floater[]>([]);
   const [flashHexes, setFlashHexes] = useState<string[]>([]);
   const [boughtStub, setBoughtStub] = useState<{ name: string; open: boolean } | null>(null);
+  const [reshufflingSeats, setReshufflingSeats] = useState<number[]>([]);
   const [overOpen, setOverOpen] = useState(view.phase === 'gameOver');
   const [reducedMotion, setReducedMotion] = useState(false);
 
@@ -89,6 +96,8 @@ export function GameScreen({
   const floaterTimer = useRef<number | undefined>(undefined);
   const stubTimer = useRef<number | undefined>(undefined);
   const purchasesRef = useRef({ gameId: view.gameId, seat: view.you, count: view.players[view.you]?.purchases ?? 0 });
+  const pilesRef = useRef<{ gameId: string; piles: { deck: number; discard: number }[] } | null>(null);
+  const shuffleTimer = useRef<number | undefined>(undefined);
   const cueRef = useRef<{ version: number; roads: number; buildings: number; played: number; awards: string; winner: number | null; dice: string; purchases: number } | null>(null);
   const youView = view.players[view.you];
   const hand = youView?.hand ?? [];
@@ -132,7 +141,29 @@ export function GameScreen({
   useEffect(() => () => {
     if (stubTimer.current !== undefined) window.clearTimeout(stubTimer.current);
     if (floaterTimer.current !== undefined) window.clearTimeout(floaterTimer.current);
+    if (shuffleTimer.current !== undefined) window.clearTimeout(shuffleTimer.current);
   }, []);
+
+  // ----- reshuffle cue -----------------------------------------------------
+  // A player's discard only ever empties when the engine shuffles it back into
+  // an empty deck, so that count falling to zero is a reliable public signal.
+  // The engine does it inside a draw, silently, which is why it needs a cue.
+  useEffect(() => {
+    const piles = view.players.map((player) => ({ deck: player.deckCount, discard: player.discardCount }));
+    const previous = pilesRef.current;
+    pilesRef.current = { gameId: view.gameId, piles };
+    if (!previous || previous.gameId !== view.gameId || previous.piles.length !== piles.length) return;
+    const seats: number[] = [];
+    piles.forEach((pile, seat) => {
+      const before = previous.piles[seat];
+      if (before && before.discard > 0 && pile.discard === 0) seats.push(seat);
+    });
+    if (seats.length === 0) return;
+    playCue('shuffle');
+    setReshufflingSeats(seats);
+    if (shuffleTimer.current !== undefined) window.clearTimeout(shuffleTimer.current);
+    shuffleTimer.current = window.setTimeout(() => setReshufflingSeats([]), 1100);
+  }, [view]);
 
   // ----- production feedback ----------------------------------------------
   // Keyed on the roll itself. `version` moves on every action, so keying on it
@@ -156,7 +187,7 @@ export function GameScreen({
         if (hex.id === view.robberHex) {
           blocked.push(hex.id);
           list.push({
-            id: `blocked-${hex.id}`,
+            id: `blocked-${hex.id}-${key}`,
             x: hex.x,
             y: hex.y - 0.1 * index.scale,
             text: `− ${hex.terrain}`,
@@ -172,7 +203,7 @@ export function GameScreen({
           if (!vertex) continue;
           const amount = building.type === 'city' ? 2 : 1;
           list.push({
-            id: `gain-${hex.id}-${vertexId}`,
+            id: `gain-${hex.id}-${vertexId}-${key}`,
             x: vertex.x,
             y: vertex.y - 0.1 * index.scale,
             text: `+${amount} ${hex.terrain === 'desert' ? '' : hex.terrain}`,
@@ -184,10 +215,12 @@ export function GameScreen({
     setFloaters(list);
     setFlashHexes([...blocked, ...paying]);
     if (floaterTimer.current !== undefined) window.clearTimeout(floaterTimer.current);
+    // Long enough to read every "+2 ore" on the board; matches the hold in the
+    // floatUp animation in board.css.
     floaterTimer.current = window.setTimeout(() => {
       setFloaters([]);
       setFlashHexes([]);
-    }, 1100);
+    }, FLOATER_LIFE_MS);
   }, [view]);
 
   // ----- sound cues --------------------------------------------------------
@@ -316,28 +349,12 @@ export function GameScreen({
     return [];
   })();
 
-  const targetList = useMemo(() => {
-    const index = indexBoard(view.board);
-    if (legalVertices.length > 0) {
-      return legalVertices.map((id) => ({ id, kind: 'vertex' as const, label: vertexLabel(view, index, id) }));
-    }
-    if (legalEdges.length > 0) {
-      return legalEdges.map((id) => ({ id, kind: 'edge' as const, label: edgeLabel(view, index, id) }));
-    }
-    if (legalHexes.length > 0) {
-      return legalHexes.map((id) => {
-        const hex = view.board.hexes.find((item) => item.id === id);
-        return { id, kind: 'hex' as const, label: `Move the robber to ${hex?.terrain ?? 'hex'} ${hex?.token ?? ''}`.trim() };
-      });
-    }
-    return [];
-  }, [legalVertices, legalEdges, legalHexes, view]);
-
   // ----- actions -----------------------------------------------------------
   const cancel = useCallback(() => {
     setPending(null);
     setSelection(null);
     setVictim(null);
+    setBuildOpen(false);
     setDrawerOpen(false);
   }, []);
 
@@ -538,18 +555,18 @@ export function GameScreen({
   }, [cancel, confirmRobber, drawerOpen, hand, inspectedIid, onRules, onToggleSound, pending, play, playableIids, selection, send, view.legal.canEndTurn, view.legal.canRoll, view.phase]);
 
   // ----- table talk & offer banner ----------------------------------------
+  // The board bubble only speaks when something must not be missed: a seven,
+  // and the win. Dice totals already sit in the dice tray, production already
+  // floats over the paying hexes, and every line is in the ship's log, so the
+  // old "6 + 3 = 9. 1 resources produced." plus a copy of the latest log line
+  // was text over the board saying what the board had just shown.
   const tableTalk = useMemo(() => {
     if (view.phase === 'gameOver') {
       const winner = view.players.find((player) => player.seat === view.winner);
       return winner ? `${winner.name} wins at ${winner.vp}.` : 'The game is over.';
     }
-    if (view.dice) {
-      const totalGain = Object.values(view.dice.gains).reduce((sum, gain) => sum + Object.values(gain).reduce((a, b) => a + (b ?? 0), 0), 0);
-      if (view.dice.total === 7) return 'Seven. Discards, then the robber moves.';
-      return `${view.dice.die1} + ${view.dice.die2} = ${view.dice.total}. ${totalGain > 0 ? `${totalGain} resources produced.` : 'Nothing produced.'}`;
-    }
-    const latest = view.log[view.log.length - 1];
-    return latest?.text ?? 'The island waits.';
+    if (view.dice?.total === 7) return 'Seven. Discards, then the robber moves.';
+    return '';
   }, [view]);
 
   const offer = view.tradeOffer;
@@ -565,7 +582,14 @@ export function GameScreen({
   const openRail = (tab: RailTab): void => {
     setRailTab(tab);
     setDrawerOpen(true);
+    setBuildOpen(false);
   };
+
+  // A new turn or phase invalidates the picker. The engine is the authority on
+  // what can still be built, and the bar re-derives it on every render.
+  useEffect(() => {
+    setBuildOpen(false);
+  }, [view.turn, view.phase]);
 
   const turnChip = view.phase === 'gameOver'
     ? 'Game over'
@@ -649,10 +673,11 @@ export function GameScreen({
           onCloseInspector={() => setInspectedIid(null)}
           letters={letters}
           pilotSeats={pilotSeats}
+          reshufflingSeats={reshufflingSeats}
         />
 
         <main className="center-column">
-          <SeatRibbon view={view} pilotSeats={pilotSeats} expanded={expandedSeat} onExpand={setExpandedSeat} letters={letters} />
+          <SeatRibbon view={view} pilotSeats={pilotSeats} expanded={expandedSeat} onExpand={setExpandedSeat} letters={letters} reshufflingSeats={reshufflingSeats} />
 
           <div className="board-wrap">
             <BoardFrame
@@ -665,7 +690,6 @@ export function GameScreen({
               floaters={floaters}
               flashHexes={flashHexes}
               onSelect={select}
-              targetList={targetList}
               tableTalk={tableTalk}
             />
             {incoming && offer ? (
@@ -684,11 +708,19 @@ export function GameScreen({
             pending={pending}
             selection={selection}
             victim={victim}
-            purchaseUsed={purchaseUsed}
+            buildOpen={buildOpen}
+            letters={letters}
             onRoll={() => send({ type: 'roll' })}
             onEndTurn={() => send({ type: 'endTurn' })}
             onOpenTrade={() => openRail('trade')}
             onOpenMarket={() => openRail('market')}
+            onOpenBuild={() => setBuildOpen(true)}
+            onCloseBuild={() => setBuildOpen(false)}
+            onPickBuild={(kind) => {
+              setBuildOpen(false);
+              setSelection(null);
+              setPending({ type: 'build', kind });
+            }}
             onDiscard={() => setDiscardOpen(true)}
             onMoveRobber={confirmRobber}
             onVictim={(seat) => setVictim(seat)}
@@ -718,6 +750,7 @@ export function GameScreen({
             onInspect={(card: CardInstance) => setInspectedIid(card.iid)}
             letters={letters}
             boughtStub={boughtStub}
+            reshuffling={reshufflingSeats.includes(view.you)}
           />
         </main>
 
@@ -752,10 +785,7 @@ export function GameScreen({
             send({ type: 'playCard', iid: pending.iid, choice: { kind: 'resources', resources } });
             setPending(null);
           }}
-          onResolveAsWood={() => {
-            send({ type: 'playCard', iid: pending.iid, choice: { kind: 'resources', resources: ['wood', 'wood'] } });
-            setPending(null);
-          }}
+          onCancel={() => setPending(null)}
         />
       ) : null}
 

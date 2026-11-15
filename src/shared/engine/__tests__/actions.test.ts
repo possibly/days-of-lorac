@@ -11,6 +11,7 @@ import {
   newGame,
   patch,
   reject,
+  setHand,
   setNextRoll,
   setResources,
   setupGame,
@@ -386,7 +387,7 @@ describe('bank and port trades', () => {
 });
 
 describe('end turn', () => {
-  it('discards hand and played cards, resets flags, passes the turn and draws up', () => {
+  it('keeps unplayed cards, discards played cards, resets flags, passes the turn and draws up', () => {
     let state = actionPhase(setupGame(4, 80), 8);
     const hand = state.players[0]?.hand.slice() ?? [];
     expect(hand).toHaveLength(5);
@@ -398,14 +399,37 @@ describe('end turn', () => {
     expect(ended.currentSeat).toBe(1);
     expect(ended.turn).toBe(state.turn + 1);
     expect(ended.phase).toBe('roll');
-    expect(ended.players[0]?.hand).toHaveLength(0);
+    expect(ended.players[0]?.hand).toHaveLength(4);
     expect(ended.players[0]?.played).toHaveLength(0);
-    expect(ended.players[0]?.discard).toHaveLength(5);
+    expect(ended.players[0]?.discard).toHaveLength(1);
     expect(ended.players[1]?.hand).toHaveLength(5);
     expect(ended.turnFlags).toEqual({ rolled: false, purchased: false });
     expect(ended.dice).toBeNull();
     expect(ended.tradeOffer).toBeNull();
     expect(ended.log[ended.log.length - 1]?.kind).toBe('turn');
+  });
+
+  it('kept cards cost a draw next upkeep, so the hand still tops out at five', () => {
+    let state = actionPhase(setupGame(2, 90), 8);
+    const played = state.players[0]?.hand[0]?.iid as number;
+    state = act(state, 0, { type: 'playCard', iid: played });
+    state = act(state, 0, { type: 'endTurn' });
+    expect(state.currentSeat).toBe(1);
+    expect(state.players[0]?.hand).toHaveLength(4);
+
+    state = act(setNextRoll(state, 8), 1, { type: 'roll' });
+    state = act(state, 1, { type: 'endTurn' });
+    expect(state.currentSeat).toBe(0);
+    expect(state.players[0]?.hand).toHaveLength(5);
+  });
+
+  it('discards charters instead of keeping them', () => {
+    let state = actionPhase(setupGame(4, 81), 8);
+    state = setHand(state, 0, ['quay-deed', 'fleet-charter', 'start-wood', 'start-ore', 'start-wheat']);
+    const ended = act(state, 0, { type: 'endTurn' });
+    const seat0 = ended.players[0];
+    expect(seat0?.hand.map((card) => card.defId)).toEqual(['start-wood', 'start-ore', 'start-wheat']);
+    expect(seat0?.discard.map((card) => card.defId).sort()).toEqual(['fleet-charter', 'quay-deed']);
   });
 
   it('cannot end the turn during setup or before rolling', () => {

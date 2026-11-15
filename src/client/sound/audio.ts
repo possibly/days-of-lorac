@@ -13,6 +13,7 @@ export type Cue =
   | 'win'
   | 'card'
   | 'buy'
+  | 'shuffle'
   | 'turn';
 
 let context: AudioContext | null = null;
@@ -111,6 +112,13 @@ export function playCue(cue: Cue): void {
     case 'buy':
       tone(t, 640, 0.07, 'triangle', 0.04);
       tone(t + 0.08, 860, 0.1, 'triangle', 0.035);
+      break;
+    case 'shuffle':
+      // A short riffle: four paper ticks that rise in pitch, then settle.
+      noiseBurst(t, 0.05, 1400, 0.04);
+      noiseBurst(t + 0.05, 0.05, 1900, 0.035);
+      noiseBurst(t + 0.1, 0.05, 2400, 0.03);
+      tone(t + 0.16, 520, 0.09, 'triangle', 0.025);
       break;
     case 'award':
       tone(t, 660, 0.16, 'sine', 0.05);

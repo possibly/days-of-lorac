@@ -20,7 +20,6 @@ flag locked rules I moved. Here is the full list of deviations.
 | Discard down to 7 on a 7 | Discard down to 9 | Charter purchases need you to hold 5 to 9 resources. A limit of 7 makes Fleet Charter (9 resources) impossible to assemble. |
 | Second settlement gives starting resources | No starting resources | The 10-card starting deck already hands you 5 resources on turn 1. Adding 3 more makes a road plus settlement on turn 1 routine. |
 | Anyone may trade on anyone's turn | Only the active player opens trade offers | Every other player would need to answer out of turn, which stalls the round. Others still accept or decline. |
-| Unplayed cards discard at end of turn | Kept. Played cards also stay in play until end of turn | Draws must not be able to reshuffle cards you already played, or a small deck can loop forever. |
 | No permanent tableau | Kept. Renown and charters are counters, not cards in front of you | Renown is a public number. Charter VP is permanent and tracked per player. |
 | Market of 8 to 10 piles | 10 strategy piles plus 2 always-stocked charter stacks | Charters are the VP clock, like Provinces. Holding them out of the pile budget means the market never spends a strategy slot on plain VP, and a player with no board options always has a VP sink. |
 | Card costs in resources | Card costs are one resource type for piles, fixed multisets for charters | Single-type costs make the market readable at a glance and tie deck buying to which numbers you landed on. |
@@ -29,6 +28,10 @@ flag locked rules I moved. Here is the full list of deviations.
 Nothing else in the skeleton changed. Terrain mix, token set, hex geometry,
 port counts, Catan build costs, draw-to-5, one purchase per turn, and "ten
 victory points wins immediately" (now fourteen in 4p) all survive.
+
+The one rule that moved back toward the brief: unplayed cards stay in hand
+instead of being discarded. Charters are the exception, because a card that
+cannot be played would clog the hand forever. Section 9.2 has the exact rule.
 
 ---
 
@@ -211,8 +214,9 @@ shuffle your discard pile into a new deck and continue. If both deck and
 discard are empty, you draw nothing and stop. There is no penalty and no
 loop.
 
-Your unplayed hand was already discarded at the end of your last turn, so
-upkeep is always a clean draw of 5.
+Upkeep is draw-to-five, not draw-five. Cards you kept last turn are already
+in hand, so you draw only the difference. Keeping all five is legal and means
+a turn with no fresh cards, which is almost always wrong.
 
 ### Phase 2: Production
 
@@ -250,8 +254,9 @@ grant extra purchases.
 
 ### Phase 4: End
 
-All cards in your play area and everything left in your hand go to your
-discard pile. Then the turn passes clockwise. You keep your resources.
+Played cards and any charters left in hand go to your discard pile. Everything
+else in hand stays there. Then the turn passes clockwise. You keep your
+resources.
 
 ---
 
@@ -340,8 +345,12 @@ starting deck, ever.
 ### 9.2 Hand size, cycling, reshuffle
 
 - Hand size 5. Draw up to 5 at upkeep.
-- Every turn you play most or all of your hand. Anything unplayed is discarded
-  at end of turn.
+- Unplayed cards stay in your hand. Next upkeep you draw only up to five, so
+  every kept card costs you one draw, and the card does not reach the discard
+  until you play it. Keeping is a real choice: the card dodges the next seven
+  and the resource limit, and buys you a resource for a later build.
+- Charters in hand are discarded at end of turn. A card that cannot be played
+  would otherwise sit in hand for the rest of the game, shrinking every draw.
 - Played cards sit in a play area until end of turn, then go to your discard
   with the rest.
 - When you must draw and the deck is empty, shuffle the discard pile to form a
@@ -468,7 +477,9 @@ below are what to move.
   distance rule total roughly 80 to 88 pips, so 20 to 22 per player.
 - Each added settlement or city upgrade adds about 0.3 per turn.
 - The deck produces exactly 5.0 per turn at the start, because you draw 5 of 10
-  cards with 2 of each resource.
+  cards with 2 of each resource. This assumes you play all five. A player who
+  keeps k cards draws 5-k next turn, so income scales with cards played, not
+  cards held.
 - Bought cards add roughly 0.3 to 0.9 per turn each early and less later, since
   drawing 5 of a bigger deck dilutes each card. Formula in `CARDS.md`.
 
@@ -685,9 +696,14 @@ resources before the game ends exceeds the cost", computed with the formula in
 `CARDS.md`.
 
 **Robber.** Never random. Priority: the leader's highest-pip non-blocked hex,
-then the hex that most hurts the second-place player, then deny ore. Never
-place on a hex the bot itself is the only producer of. Skip the steal target
-only if there is no one adjacent.
+then the hex that most hurts the second-place player, then deny ore. No hex
+that costs the bot at least as much production as it denies: candidates are
+tiered by `selfHarmTier` before any weighting, so the rule holds at every
+difficulty rather than relying on a self-penalty weight. When every legal hex
+hurts the bot, it takes the smallest own loss. Skip the steal target only if
+there is no one adjacent. Wrecker's Lamp rates the move optional: if the only
+gain would come off the bot's own hex, play the card for renown and leave the
+robber where it is.
 
 **Endgame.** When the bot is at target minus 2 or less, recalculate every turn
 and prefer the action that wins this turn or next. When a specific opponent is
@@ -763,8 +779,10 @@ Numbered so tests can reference them.
 27. Wrecker's Lamp: the robber move is optional. If the player declines, the
     renown is still gained. If nobody has a building on the chosen hex, the
     move happens and the steal is skipped.
-28. Provisioner: choose 2 resources, repeats allowed. If the player chooses
-    nothing, it resolves as 2 wood. The engine must never hang waiting.
+28. Provisioner: choose 2 resources, repeats allowed. The client sends nothing
+    until the player confirms, so cancelling the picker leaves the card in
+    hand. A play that arrives with no choice resolves as 2 wood: the engine
+    must never hang waiting, but a player is never forced to spend the card.
 29. Purchased cards go to discard, not to hand, and are not playable that turn.
 30. A second purchase in the same turn is rejected with `PURCHASE_LIMIT`.
 31. Buying from an empty pile is rejected with `PILE_EMPTY`.
@@ -776,9 +794,10 @@ Numbered so tests can reference them.
 **Turn structure**
 
 34. A player may end their turn at any point in the action phase, even with
-    cards in hand and legal actions available. Unplayed cards are discarded.
-35. There is no "must play all cards" requirement, but since cards are free,
-    there is never a reason not to.
+    cards in hand and legal actions available. Unplayed cards stay in hand.
+35. There is no "must play all cards" requirement. Keeping a card is a real
+    choice: the card stays out of the pool and safe from the next seven, at the
+    cost of one draw next upkeep.
 36. Production happens before the action phase. A card cannot change the roll.
 37. A player with no legal build, no legal purchase, and no useful card still
     ends their turn. The UI must say why the turn was empty: "No affordable
@@ -909,7 +928,8 @@ deadline.
   not tuned.
 - Full turn cycle, robber, discards, steals.
 - All Catan building, all bank and port trades.
-- Deck: 10 starting cards, hand 5, draw and reshuffle, discard at end of turn.
+- Deck: 10 starting cards, hand 5, keep unplayed cards, discard played cards,
+  draw and reshuffle.
 - All 10 market piles and both charter stacks, one purchase per turn.
 - Both awards.
 - Player-to-player trades, offer to all, accept or decline, no counter-offer.
@@ -1018,6 +1038,10 @@ Watch these numbers rather than vibes:
 - How often a player ends a turn with zero legal builds and zero purchases.
 - Award holders over time. If one player holds both awards from turn 6 to the
   end, both thresholds are too cheap.
+- Cards kept per turn and how often a kept hand was cashed for a charter. A
+  player can bank a five-card hand out of reach of the seven, so watch whether
+  Fleet Charter stops being the intended gamble. The lever is a keep cap of two
+  or three, not a charter cost change.
 - Human turn duration, median and 90th percentile.
 
 ---

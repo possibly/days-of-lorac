@@ -18,17 +18,39 @@
   padding: 40px 8px 6px;
 }
 
-.play-area {
+/* One header row: played cards on the left, pile counts on the right. Both used
+   to be absolutely positioned, and the played strip's fixed `right` inset did
+   not clear the counters once five cards were down, so stubs ran under the
+   deck/discard text. */
+.dock-head {
   position: absolute;
   top: 5px;
   left: 8px;
-  right: 150px;
+  right: 8px;
   height: 32px;
   display: flex;
   align-items: center;
+  gap: 8px;
+}
+.play-area {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 30px;
+  display: flex;
+  align-items: center;
   gap: 4px;
-  overflow: hidden;
+  /* Five cards fit nowhere; scroll the strip instead of hiding the rest. */
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
   border-bottom: 1px solid rgba(160, 127, 61, 0.35);
+}
+.play-area::-webkit-scrollbar { display: none; }
+.play-area.is-scrollable {
+  mask-image: linear-gradient(90deg, transparent 0, #000 10px, #000 calc(100% - 14px), transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 10px, #000 calc(100% - 14px), transparent);
 }
 .play-area-empty {
   font-size: 9.5px;
@@ -72,9 +94,7 @@
 }
 
 .hand-counters {
-  position: absolute;
-  top: 8px;
-  right: 10px;
+  flex: none;
   display: flex;
   gap: 8px;
   font-family: var(--mono);
@@ -138,6 +158,100 @@
 .card-slot {
   width: 100%;
   height: 100%;
+}
+
+/* A card that just arrived from the deck. The dock measures the gap between
+   the card's final box and the deck counter and hands it over as CSS vars, so
+   the slide starts exactly at the counter at every screen size. */
+.card-slot.is-dealing {
+  animation: cardDeal 320ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation-delay: var(--deal-delay, 0ms);
+}
+@keyframes cardDeal {
+  from {
+    transform: translate(var(--deal-dx, 0px), var(--deal-dy, 0px)) rotate(-9deg) scale(0.55);
+    opacity: 0;
+  }
+  55% { opacity: 1; }
+  to {
+    transform: translate(0, 0) rotate(0deg) scale(1);
+    opacity: 1;
+  }
+}
+
+/* End-of-turn flights. The real cards are already gone from the snapshot, so
+   these are throwaway copies at their last measured boxes. */
+.card-flight-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 350;
+  pointer-events: none;
+}
+.card-flight {
+  position: fixed;
+  transform-origin: 50% 50%;
+  animation-name: cardFlyAway;
+  animation-timing-function: cubic-bezier(0.45, 0, 0.75, 0.5);
+  animation-fill-mode: forwards;
+  will-change: transform, opacity;
+}
+.flight-face {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--gold-600);
+  border-radius: 6px;
+  background:
+    radial-gradient(130% 100% at 50% -20%, #fffaec 0%, transparent 52%),
+    linear-gradient(170deg, var(--parchment-100), var(--parchment-300));
+  color: var(--ink-900);
+  box-shadow:
+    inset 0 0 0 1px rgba(160, 127, 61, 0.25),
+    0 14px 24px -14px rgba(0, 0, 0, 0.85);
+}
+.flight-name {
+  font-family: var(--serif);
+  font-size: 12px;
+  line-height: 1.1;
+  font-weight: 700;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.flight-mark { line-height: 0; }
+@keyframes cardFlyAway {
+  0% { transform: translate(0, 0) rotate(0deg) scale(1); opacity: 1; }
+  18% { transform: translate(0, -14px) rotate(-2deg) scale(1.01); opacity: 1; }
+  100% {
+    transform: translate(var(--fly-dx, 0px), var(--fly-dy, 0px)) rotate(var(--fly-tilt, 0deg)) scale(0.22);
+    opacity: 0;
+  }
+}
+
+.hand-counters { position: relative; }
+.hand-counters.is-reshuffling { color: var(--gold-600); }
+.hand-counters.is-reshuffling .counter-card.discard {
+  animation: reshuffleTick 900ms ease-out;
+}
+@keyframes reshuffleTick {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  20% { transform: rotate(-20deg) scale(1.35); }
+  45% { transform: rotate(14deg) scale(1.15); }
+  70% { transform: rotate(-6deg) scale(1.05); }
+}
+
+/* No flying copies and no deal delay when motion is reduced. The counts and the
+   "shuffled" tag still tell the same story. */
+@media (prefers-reduced-motion: reduce) {
+  .card-flight-layer { display: none; }
+  .card-slot.is-dealing { animation: none; }
+  .reshuffle-flag { animation: none; opacity: 0.9; }
+  .hand-counters.is-reshuffling .counter-card.discard { animation: none; }
 }
 
 .card-face {
@@ -246,10 +360,14 @@
   line-height: 1.3;
   color: var(--ink-700);
   display: -webkit-box;
-  -webkit-line-clamp: 4;
+  /* Five lines: the longest card text (Wrecker's Lamp, 104 chars) needs five at
+     this width. Four clipped the last clause off the card's whole point. */
+  -webkit-line-clamp: 5;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  text-wrap: pretty;
+  /* No `text-wrap: pretty`. In WebKit it breaks this narrow clamped box into
+     stub lines roughly half the available width, so a 104-character card text
+     rendered as ten short lines with an ellipsis instead of seven full ones. */
   min-height: 42px;
 }
 .card-flavor {
@@ -338,11 +456,11 @@
   .hand-dock { padding: 34px 6px 6px; --card-w: 132px; --card-h: 152px; }
   .hand-fan { inset: 34px 6px 6px; }
   .card-name { font-size: 12px; }
-  .card-text { font-size: 10.5px; -webkit-line-clamp: 3; min-height: 38px; }
+  .card-text { font-size: 10.5px; -webkit-line-clamp: 5; min-height: 0; }
   .card-flavor { display: none; }
   .card-plate { height: 34px; }
   .card-plate svg { width: 34px; height: 34px; }
-  .play-area { right: 130px; height: 30px; }
+  .play-area { height: 28px; }
   .play-stub { height: 24px; width: 88px; }
   .hand-counters { font-size: 9px; }
 }
@@ -354,29 +472,49 @@
   letter-spacing: 0.02em;
 }
 
-/* Phone: smaller cards so a five-card fan fits inside the dock. */
+/* Phone: smaller cards so a five-card fan fits inside the dock, and the face
+   carries only the two things a player reads at the table: the name and the
+   rules text. The hex plate, cost pips, dashed flap, flavor, and tag are
+   decoration, and they were what squeezed the benefit into a three-line clamp
+   that cut sentences in half. Cost pips are also misleading here: cards are
+   free to play, so the number is the market price, not a play cost. */
 @media (max-width: 640px) {
   .hand-dock {
     --card-w: 110px;
-    --card-h: 126px;
+    --card-h: 136px;
     padding: 30px 5px max(5px, env(safe-area-inset-bottom));
   }
   .hand-fan { inset: 30px 5px 5px; }
-  .card-face { padding: 5px 6px; gap: 2px; border-radius: 5px; }
-  .card-name { font-size: 10.5px; }
-  .card-head { min-height: 14px; }
-  .cost-pip { font-size: 9px; }
-  .card-plate { height: 28px; }
-  .card-plate svg { width: 28px; height: 28px; }
-  .card-text { font-size: 9px; line-height: 1.22; -webkit-line-clamp: 3; min-height: 26px; }
-  .card-foot { font-size: 7.5px; }
-  .card-tag { font-size: 7.5px; letter-spacing: 0.08em; }
-  .choice-badge { width: 13px; height: 13px; font-size: 9px; }
-  .vp-seal.card-seal { width: 16px; height: 16px; font-size: 9px; }
-  .dup-disc { font-size: 8px; }
-  .play-area { top: 4px; left: 6px; right: 74px; height: 24px; }
+  .card-face { padding: 6px 7px 5px; gap: 2px; border-radius: 5px; }
+  .card-plate,
+  .card-cost,
+  .rope-rule,
+  .card-flavor,
+  .card-foot,
+  .charter-stamp { display: none; }
+  .card-head { min-height: 0; align-items: flex-start; padding-right: 14px; }
+  /* Long names (Shipwright's Yard, Wrecker's Lamp) wrap instead of ellipsing. */
+  .card-name {
+    font-size: 11px;
+    line-height: 1.15;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .card-text {
+    font-size: 10.5px;
+    line-height: 1.24;
+    /* The longest card in the deck is 104 characters; seven lines holds it. */
+    -webkit-line-clamp: 7;
+    min-height: 0;
+  }
+  .dup-disc { font-size: 8px; top: 2px; right: 3px; }
+  .dock-head { top: 4px; left: 6px; right: 6px; height: 24px; gap: 6px; }
+  .play-area { height: 22px; }
   .play-stub { height: 20px; width: 70px; font-size: 8px; }
-  .hand-counters { top: 6px; right: 8px; font-size: 8px; gap: 6px; }
+  .hand-counters { font-size: 8px; gap: 6px; }
   .spread-toggle { display: none; }
 }
 
@@ -386,12 +524,10 @@
 @media (max-height: 520px) and (max-width: 1180px) {
   .hand-dock { --card-w: 92px; --card-h: 104px; padding: 5px 5px 4px; }
   .hand-fan { inset: 5px 5px 4px; }
-  .play-area, .hand-counters { display: none; }
+  .dock-head { display: none; }
   .card-face { padding: 4px 5px; gap: 1px; }
   .card-plane, .card-name { font-size: 10px; }
-  .card-plate { height: 24px; }
-  .card-plate svg { width: 24px; height: 24px; }
-  .card-text { font-size: 8.5px; line-height: 1.2; -webkit-line-clamp: 2; min-height: 20px; }
+  .card-text { font-size: 9.5px; line-height: 1.22; -webkit-line-clamp: 7; min-height: 0; }
   .card-foot { display: none; }
   .card-flavor { display: none; }
   /* No play-area strip and no toggle in landscape. */

@@ -8,16 +8,17 @@ import { ResourceIcon } from '../ui/icons';
 const WORD: Record<Resource, string> = { wood: 'Wood', brick: 'Brick', sheep: 'Sheep', wheat: 'Wheat', ore: 'Ore' };
 
 /**
- * Provisioner: pick two resources, repeats allowed. Esc offers the engine's
- * fallback (two wood) instead of pretending the play can be cancelled; the
- * card has already left the hand by the time this opens.
+ * Provisioner: pick two resources, repeats allowed. Nothing is sent until the
+ * player confirms, so Esc, the backdrop, the close button, and Cancel all back
+ * out with the card still in hand. The engine's two-wood fallback is only for
+ * a play that arrives without a choice, never for a player walking away.
  */
 export function ProvisionerModal({
   onConfirm,
-  onResolveAsWood,
+  onCancel,
 }: {
   onConfirm: (resources: [Resource, Resource]) => void;
-  onResolveAsWood: () => void;
+  onCancel: () => void;
 }): JSX.Element {
   const [picks, setPicks] = useState<Resource[]>([]);
 
@@ -25,7 +26,7 @@ export function ProvisionerModal({
     <Modal
       title="Provisioner"
       width={360}
-      onClose={onResolveAsWood}
+      onClose={onCancel}
       footer={
         <>
           <Button
@@ -38,7 +39,7 @@ export function ProvisionerModal({
           >
             Gain 2 resources
           </Button>
-          <Button variant="ghost" onClick={() => setPicks([])}>Clear</Button>
+          <Button variant="ghost" onClick={onCancel}>Cancel</Button>
         </>
       }
     >
@@ -59,7 +60,6 @@ export function ProvisionerModal({
           );
         })}
       </div>
-      <p className="modal-small">Esc resolves the card as 2 Wood, which is the engine's fallback.</p>
     </Modal>
   );
 }

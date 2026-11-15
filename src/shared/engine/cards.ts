@@ -199,7 +199,7 @@ export function playCard(draft: GameState, seat: Seat, action: PlayCardAction): 
         if (target) {
           draft.roads[target] = seat;
           placedRoads.push(target);
-          addLog(draft, 'build', `${player.name} places a free road on ${target}.`, seat, {
+          addLog(draft, 'build', `${player.name} places a free road.`, seat, {
             edge: target,
             free: true,
             card: def.id,
@@ -218,7 +218,7 @@ export function playCard(draft: GameState, seat: Seat, action: PlayCardAction): 
         if (target) {
           draft.buildings[target] = { owner: seat, type: 'settlement' };
           placedSettlements.push(target);
-          addLog(draft, 'build', `${player.name} places a free settlement on ${target}.`, seat, {
+          addLog(draft, 'build', `${player.name} places a free settlement.`, seat, {
             vertex: target,
             free: true,
             card: def.id,
@@ -291,6 +291,7 @@ export function buyCard(draft: GameState, seat: Seat, action: BuyCardAction): En
   draft.nextCardIid += 1;
   player.discard.push(instance);
   player.purchases += 1;
+  player.bought[def.id] = (player.bought[def.id] ?? 0) + 1;
   if (def.kind === 'charter') {
     player.charters[def.id] = (player.charters[def.id] ?? 0) + 1;
   }

@@ -15,6 +15,10 @@ html {
   /* iOS Safari: keep text at its designed size, and never bounce the page. */
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  /* Body alone does not always stop a horizontal pan on iOS Safari when a
+     fixed drawer sits near the edge. Say it on the root too. */
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 body {
@@ -37,6 +41,16 @@ button,
 a,
 [role="button"],
 .board-svg .target {
+  touch-action: manipulation;
+}
+
+/* A board game is two taps a second. `manipulation` keeps pan, pinch, and
+   scrolling but drops double-tap zoom, which on iOS zooms the page into the
+   tapped element and stays there. A zoomed page is why a fixed right-edge
+   drawer reads as cut off and needs a sideways pan, while every measured box
+   is exactly viewport wide. `user-scalable=no` no longer stops this: iOS
+   ignores it for accessibility. */
+html {
   touch-action: manipulation;
 }
 
@@ -232,13 +246,22 @@ input {
   text-transform: uppercase;
   color: var(--ink-500);
 }
+:root {
+  /* iOS Safari zooms the whole page when a focused control's text is under
+     16px, and the zoom outlives the keyboard. The layout viewport stays phone
+     wide while the visible slice shrinks, so anything pinned to the right edge
+     (the market drawer) reads as cut off and needs a sideways pan. Every text
+     control therefore keeps a 16px floor. */
+  --field-text: 16px;
+}
+
 .field input {
   min-height: 38px;
   padding: 7px 10px;
   border-radius: 3px;
   border: 1px solid rgba(160, 127, 61, 0.65);
   background: rgba(255, 253, 245, 0.75);
-  font-size: 14px;
+  font-size: var(--field-text);
   letter-spacing: normal;
   text-transform: none;
 }
@@ -437,6 +460,26 @@ input {
 @keyframes pulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
 @keyframes dash { to { stroke-dashoffset: -20; } }
 
+/* "shuffled" rides above a deck line for about a second, then fades. */
+.reshuffle-flag {
+  position: absolute;
+  right: 0;
+  top: -13px;
+  font-family: var(--sans);
+  font-size: 8.5px;
+  line-height: 1;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold-600);
+  pointer-events: none;
+  animation: reshuffleFlag 1100ms ease-out forwards;
+}
+@keyframes reshuffleFlag {
+  0% { opacity: 0; transform: translateY(4px); }
+  18%, 70% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-4px); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -451,7 +494,6 @@ input {
   .header-btn { min-height: 40px; }
   .step-btn { width: 36px; height: 36px; }
   .rail-tab { min-height: 44px; }
-  .target-list-item { min-height: 40px; }
 }
 
 /* Narrow screens swap long labels for short ones. */

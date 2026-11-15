@@ -179,6 +179,8 @@ export interface PlayerState {
   played: CardInstance[];
   /** Purchases made over the whole game, for stats and bots. */
   purchases: number;
+  /** Cards bought per card id, over the whole game. */
+  bought: Record<string, number>;
 }
 
 export interface SetupState {
@@ -431,6 +433,8 @@ export interface PlayerView {
   playedCount: number;
   played: CardInstance[];
   purchases: number;
+  /** Copies of each card this seat has bought. Public: the log announces buys. */
+  bought: Record<string, number>;
 }
 
 export interface GameView {

@@ -152,17 +152,62 @@
 .pp-res-cell.is-zero { color: var(--ink-500); }
 .pp-res-cell.is-zero .res-icon { opacity: 0.4; }
 
-.pp-meta {
+/* Renown and route as live tracks: value, the number that pays, and who is in
+   the way. One row each so a narrow panel never truncates the target. */
+.pp-tracks {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 5px;
+  flex-direction: column;
+  gap: 2px;
   font-family: var(--sans);
   font-size: 9.5px;
   color: var(--ink-500);
 }
-.pp-meta b { color: var(--ink-900); font-size: 11px; }
+.pp-tracks b { color: var(--ink-900); font-size: 11px; }
+.pp-track {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+}
+.pp-track-label {
+  width: 46px;
+  flex: none;
+  letter-spacing: 0.04em;
+}
+.pp-track-value { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pp-track-need { color: var(--ink-500); }
+.pp-track-note {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pp-track-holder { color: var(--ink-700); }
+.pp-track.is-held { color: #7c5c1d; }
+.pp-track.is-held .pp-track-label,
+.pp-track.is-held .pp-track-value b { color: var(--ink-900); }
+/* Dark gold, not --gold-600: that one is a border colour and turns grey at
+   9.5px on parchment. */
+.pp-track.is-held .pp-track-note { color: #7c5c1d; font-weight: 700; }
 .pp-renown { position: relative; display: inline-flex; align-items: center; gap: 3px; }
+.pp-renown.is-held, .pp-route.is-held { color: var(--ink-700); }
+/* "renown 2/3 +2 at 3" and "route 5": the number that turns into VP, and the
+   stake, stated on the panel instead of buried in a hover title. */
+.pp-stake {
+  font-style: normal;
+  font-size: 8.5px;
+  letter-spacing: 0.02em;
+  color: var(--ink-500);
+}
+.pp-renown.is-held .pp-stake { color: var(--gold-600); font-weight: 700; }
+.pp-route { display: inline-flex; align-items: center; gap: 3px; }
+.pp-chip-label {
+  font-size: 8.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+  align-self: center;
+}
 .renown-tick {
   position: absolute;
   left: -12px;
@@ -174,6 +219,7 @@
 .renown-tick.is-met { background: var(--gold-600); }
 .award-pin { display: inline-flex; color: var(--gold-600); }
 .pp-deckline {
+  position: relative;
   font-family: var(--mono);
   font-size: 9px;
   color: var(--ink-500);
@@ -181,6 +227,14 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.pp-deckline.is-reshuffling {
+  overflow: visible;
+  animation: decklineShuffle 1000ms ease-out;
+}
+@keyframes decklineShuffle {
+  0%, 100% { color: var(--ink-500); }
+  22%, 62% { color: var(--gold-600); }
 }
 .pp-awards {
   display: flex;

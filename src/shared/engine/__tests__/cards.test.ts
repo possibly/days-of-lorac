@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { EdgeId, GameState, VertexId } from '../../types.js';
-import { CARD_BY_ID, CHARTER_CARDS } from '../../cards.js';
-import { legalMoves, scorePlayer } from '../index.js';
+import { CARD_BY_ID, CARD_DEFS, CHARTER_CARDS, cardMovesRobber } from '../../cards.js';
+import { legalMoves, scorePlayer, viewFor } from '../index.js';
 import {
   act,
   actionGame,
@@ -51,6 +51,13 @@ describe('starting cards', () => {
 });
 
 describe('market piles', () => {
+  it('every card that moves the robber says so in its text', () => {
+    const robberCards = CARD_DEFS.filter(cardMovesRobber);
+    expect(robberCards.map((card) => card.id)).toContain('wreckers-lamp');
+    for (const card of robberCards) {
+      expect(card.text.toLowerCase()).toContain('robber');
+    }
+  });
   it('Salvage Yard gains 2 brick and 1 ore', () => {
     const state = setHand(actionGame(4, 201), 0, ['salvage-yard']);
     const before = { ...state.players[0]!.resources };
@@ -328,6 +335,10 @@ describe('charters and purchases', () => {
     expect(state.players[0]?.discard).toHaveLength(1);
     expect(state.players[0]?.hand.some((card) => card.defId === 'salvage-yard')).toBe(false);
     expect(state.players[0]?.purchases).toBe(1);
+    // Per-card tally, so the market can say which cards a seat already bought.
+    expect(state.players[0]?.bought['salvage-yard']).toBe(1);
+    expect(state.players[0]?.bought['provisioner']).toBeUndefined();
+    expect(viewFor(state, 0).players[0]?.bought['salvage-yard']).toBe(1);
     expect(state.turnFlags.purchased).toBe(true);
 
     const second = reject(state, 0, { type: 'buyCard', defId: 'provisioner' });

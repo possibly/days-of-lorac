@@ -14,6 +14,7 @@ interface TitleScreenProps {
   onForget: () => void;
   onRules: () => void;
   session: StoredSession | null;
+  offline: boolean;
   link: LinkState;
   serverVersion: string | null;
   clientVersion: string;
@@ -30,6 +31,7 @@ export function TitleScreen({
   onForget,
   onRules,
   session,
+  offline,
   link,
   serverVersion,
   clientVersion,
@@ -49,7 +51,7 @@ export function TitleScreen({
           and be the first to the target.
         </p>
 
-        {session ? (
+        {!offline && session ? (
           <div className="resume-strip">
             <span>You have a game in room <b className="room-code">{session.code}</b>.</span>
             <div className="resume-actions">
@@ -61,8 +63,12 @@ export function TitleScreen({
 
         <div className="title-actions">
           <Button variant="primary" className="btn-lg" onClick={onSolo}>Play vs bots</Button>
-          <Button variant="secondary" className="btn-lg" onClick={onCreate}>Create room</Button>
-          <Button variant="secondary" className="btn-lg" onClick={onJoin}>Join with code</Button>
+          {offline ? null : (
+            <>
+              <Button variant="secondary" className="btn-lg" onClick={onCreate}>Create room</Button>
+              <Button variant="secondary" className="btn-lg" onClick={onJoin}>Join with code</Button>
+            </>
+          )}
         </div>
 
         <button type="button" className="text-link" onClick={onRules}>Rules</button>
@@ -96,14 +102,14 @@ export function TitleScreen({
 
       <footer className="footnote">
         <span className="version">v{clientVersion}</span>
-        <span className={`socket socket-${link === 'open' ? 'connected' : link === 'connecting' ? 'connecting' : 'disconnected'}`} title={mismatch ? `Server runs v${serverVersion}` : 'WebSocket status'}>
+        <span className={`socket socket-${offline || link === 'open' ? 'connected' : link === 'connecting' ? 'connecting' : 'disconnected'}`} title={offline ? 'This build runs entirely in your browser' : mismatch ? `Server runs v${serverVersion}` : 'WebSocket status'}>
           <span className="socket-dot" aria-hidden="true" />
           <span className="socket-label">
-            {link === 'open' ? 'Server connected' : link === 'connecting' ? 'Connecting to server' : link === 'idle' ? 'Server idle' : 'Server offline'}
+            {offline ? 'Offline build' : link === 'open' ? 'Server connected' : link === 'connecting' ? 'Connecting to server' : link === 'idle' ? 'Server idle' : 'Server offline'}
           </span>
-          {mismatch ? <span className="socket-warn">v{serverVersion}</span> : null}
+          {!offline && mismatch ? <span className="socket-warn">v{serverVersion}</span> : null}
         </span>
-        {latency !== null && link === 'open' ? <span className="latency">{latency} ms</span> : null}
+        {!offline && latency !== null && link === 'open' ? <span className="latency">{latency} ms</span> : null}
       </footer>
     </main>
   );

@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "concurrently -n server,client -c magenta,cyan \"tsx watch src/server/index.ts\" \"vite\"",
     "build": "tsc --noEmit && vite build",
+    "build:offline": "tsc --noEmit && VITE_OFFLINE=1 vite build",
     "start": "tsx src/server/index.ts",
     "test": "vitest run",
     "test:watch": "vitest",

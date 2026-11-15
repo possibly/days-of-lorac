@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { CardDef, GameView, Resource } from '@shared/types';
-import { MARKET_CARDS, CHARTER_CARDS } from '@shared/cards';
+import { MARKET_CARDS, CHARTER_CARDS, cardMovesRobber } from '@shared/cards';
 import { RESOURCES } from '@shared/types';
 import { ResourceIcon } from '../ui/icons';
 import { Button } from '../ui/Button';
@@ -73,6 +73,7 @@ export function MarketTab({ view, purchaseUsed, onBuy, letters }: MarketTabProps
             }}
             letters={letters}
             charter
+            owned={you?.bought[def.id] ?? 0}
             targetVp={target}
             resources={you?.resources ?? { wood: 0, brick: 0, sheep: 0, wheat: 0, ore: 0 }}
           />
@@ -101,6 +102,7 @@ export function MarketTab({ view, purchaseUsed, onBuy, letters }: MarketTabProps
               setConfirm(null);
             }}
             letters={letters}
+            owned={you?.bought[def.id] ?? 0}
             targetVp={target}
             resources={you?.resources ?? { wood: 0, brick: 0, sheep: 0, wheat: 0, ore: 0 }}
           />
@@ -141,6 +143,7 @@ function MarketRow({
   onBuy,
   letters,
   charter,
+  owned,
   targetVp,
   resources,
 }: {
@@ -156,6 +159,8 @@ function MarketRow({
   onBuy: () => void;
   letters: boolean;
   charter?: boolean;
+  /** How many of this card the viewer has bought this game. */
+  owned: number;
   targetVp: number;
   resources: Record<Resource, number>;
 }): JSX.Element {
@@ -168,6 +173,7 @@ function MarketRow({
   else if (!isTurn) reason = 'You can only buy during your action phase.';
   else if (!buyable) reason = missing || 'You cannot afford that right now.';
   const primary = costs[0] ?? 'ore';
+  const movesRobber = cardMovesRobber(def);
   const firstClause = def.text.split('.')[0] ?? def.text;
   const reasonId = `buy-reason-${def.id}`;
 
@@ -176,6 +182,7 @@ function MarketRow({
       <div className="market-row is-soldout">
         <div className="row-bar" style={{ background: `var(--${primary})` }} aria-hidden="true" />
         <span className="row-soldout-name">{def.name}</span>
+        {owned > 0 ? <span className="row-owned" title={`You have bought ${owned} of these this game.`}>{owned} bought</span> : null}
         <span className="row-soldout">Sold out</span>
       </div>
     );
@@ -186,6 +193,7 @@ function MarketRow({
       <div className="row-bar" style={{ background: `var(--${primary})` }} aria-hidden="true" />
       <header className="row-head">
         <span className="row-name">{def.name}</span>
+        {owned > 0 ? <span className="row-owned" title={`You have bought ${owned} of these this game.`}>{owned} bought</span> : null}
         <span className={`row-stock${stock <= 2 ? ' is-low' : ''}`}>
           {charter ? `x${stock}` : `${stock} left`}
         </span>
@@ -206,6 +214,7 @@ function MarketRow({
       </div>
 
       <p className="row-effect" title={def.text}>{firstClause}.</p>
+      {movesRobber ? <p className="row-note">May move the robber.</p> : null}
 
       <div className="row-action">
         <Button
@@ -226,6 +235,7 @@ function MarketRow({
           <p className="confirm-q">Buy {def.name} for {costLabel(def)}?</p>
           <p className="confirm-note">
             Goes straight to your discard. You cannot play it this turn.
+            {movesRobber ? ' May move the robber when you play it.' : ''}
             {charter ? ` Adds ${def.vp ?? 0} victory point${(def.vp ?? 0) === 1 ? '' : 's'} to your total right now, and stays in your deck forever. Target is ${targetVp}.` : ''}
           </p>
           <div className="confirm-actions">

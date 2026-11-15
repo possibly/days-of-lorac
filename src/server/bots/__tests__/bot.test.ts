@@ -32,7 +32,7 @@ import { CARD_BY_ID } from '../../../shared/cards.js';
 import { chooseProvisionerResources, choosePurchase } from '../cards.js';
 import { chooseDiscard } from '../discard.js';
 import { chooseBotAction, isLegalAction } from '../index.js';
-import { bestRobberTarget } from '../robber.js';
+import { bestRobberTarget, chooseLampTarget, pipsFor } from '../robber.js';
 import { Sense } from '../sense.js';
 import { formatReport, playOutGame, runBalance, runGame } from '../simulate.js';
 import { maybeOfferTrade } from '../trade.js';
@@ -349,6 +349,139 @@ describe('bot policy: robber', () => {
     if (!target) return;
     expect(target.hex).toBe(rivalHex.id);
     expect(target.victimSeat).toBe(1);
+  });
+});
+
+describe('bot policy: robber never hurts the bot', () => {
+  /**
+   * A board where the bot's own hex is by far the most attractive in score
+   * terms: richest pips, ore scarcity bonus, a city on it. A rival's poorer hex
+   * and an empty hex are the alternatives.
+   */
+  function stackedBoard(seed: number) {
+    const base = createGame({ playerCount: 4, seed });
+    const index = boardIndex(base.board);
+    const candidates = base.board.hexes.filter(
+      (hex) => hex.id !== base.robberHex && hex.terrain !== 'desert' && hex.token !== null,
+    );
+    const ranked = [...candidates].sort((a, b) => {
+      const ways = (token: number | null) => (token === 6 || token === 8 ? 5 : token === 5 || token === 9 ? 4 : token === 11 || token === 3 ? 2 : token === 12 || token === 2 ? 1 : 3);
+      return ways(b.token) - ways(a.token);
+    });
+    const myHex = ranked.find((hex) => hex.terrain === 'ore') ?? ranked[0]!;
+    const rivalHex = ranked.find((hex) => hex.id !== myHex.id && hex.terrain !== myHex.terrain)!;
+    const emptyHex = ranked.find((hex) => hex.id !== myHex.id && hex.id !== rivalHex.id)!;
+    const lonely = (hex: { vertices: string[] }): string =>
+      hex.vertices.find((vertex) => (index.hexesByVertex.get(vertex) ?? []).length === 1) ?? (hex.vertices[0] as string);
+
+    const mineVertex = lonely(myHex);
+    const rivalVertex = lonely(rivalHex);
+    const state = patch(base, (draft) => {
+      draft.buildings = {};
+      draft.roads = {};
+      draft.buildings[mineVertex] = { owner: 0, type: 'city' };
+      draft.buildings[rivalVertex] = { owner: 1, type: 'settlement' };
+      draft.phase = 'robber';
+      draft.currentSeat = 0;
+    });
+    return { state, myHex, rivalHex, emptyHex, mineVertex, rivalVertex };
+  }
+
+  it('skips its own hex at every difficulty, even when it scores best', () => {
+    const { state, myHex, rivalHex, emptyHex } = stackedBoard(57);
+    const view = viewFor(state, 0);
+    const sense = new Sense(view);
+    expect(pipsFor(sense, sense.hex(myHex.id)!, 0)).toBeGreaterThan(0);
+
+    for (const difficulty of DIFFICULTIES) {
+      const { target } = bestRobberTarget(
+        sense,
+        [myHex.id, rivalHex.id, emptyHex.id],
+        undefined,
+        weightsFor(difficulty),
+      );
+      expect(target, difficulty).not.toBeNull();
+      if (!target) continue;
+      expect(target.hex, difficulty).toBe(rivalHex.id);
+      expect(pipsFor(sense, sense.hex(target.hex)!, 0), difficulty).toBe(0);
+    }
+  });
+
+  it('takes the smallest own loss when every candidate produces for the bot', () => {
+    const { state, myHex, rivalHex, rivalVertex } = stackedBoard(58);
+    // Hand the rival's corner to the bot: both candidates are now its own.
+    const bothMine = patch(state, (draft) => {
+      draft.buildings[rivalVertex] = { owner: 0, type: 'settlement' };
+    });
+    const sense = new Sense(viewFor(bothMine, 0));
+    const rich = pipsFor(sense, sense.hex(myHex.id)!, 0);
+    const poor = pipsFor(sense, sense.hex(rivalHex.id)!, 0);
+    expect(rich).toBeGreaterThan(poor);
+    expect(poor).toBeGreaterThan(0);
+
+    for (const difficulty of DIFFICULTIES) {
+      const { target } = bestRobberTarget(sense, [myHex.id, rivalHex.id], undefined, weightsFor(difficulty));
+      expect(target?.hex, difficulty).toBe(rivalHex.id);
+    }
+  });
+
+  it('leaves the robber alone rather than pay renown to block its own hex', () => {
+    const { state, myHex, rivalHex, emptyHex } = stackedBoard(59);
+    const view = viewFor(state, 0);
+    const sense = new Sense(view);
+    // The richer choice here would be the bot's own city: skip the card move.
+    const mine = chooseLampTarget(sense, [myHex.id], undefined, weightsFor('hard'));
+    expect(mine).toBeUndefined();
+    // A rival hex is still worth the move.
+    const good = chooseLampTarget(sense, [rivalHex.id, emptyHex.id], undefined, weightsFor('hard'));
+    expect(good?.hex).toBe(rivalHex.id);
+  });
+});
+
+describe('bot policy: robber in simulated games', () => {
+  /**
+   * The rule the weighted score is not allowed to break: at move time, no
+   * simulated game parks the robber on a hex that produces only for the mover.
+   * This is the check that catches a difficulty profile whose self-penalty is
+   * too small, which is exactly how easy bots used to do it.
+   */
+  it('never blocks a hex only the mover produces, at any difficulty', () => {
+    const offenders: string[] = [];
+    for (const difficulty of DIFFICULTIES) {
+      for (const seed of [311, 312]) {
+        let state = createGame({ playerCount: 4, seed });
+        let guard = 0;
+        while (state.phase !== 'gameOver' && guard < 3000) {
+          const seat =
+            state.phase === 'discard' && state.discardQueue.length > 0
+              ? (state.discardQueue[0] as Seat)
+              : state.phase === 'action' && state.tradeOffer && state.tradeOffer.to.length > 0
+                ? (state.tradeOffer.to[0] as Seat)
+                : state.currentSeat;
+          const view = viewFor(state, seat);
+          const action = chooseBotAction(view, difficulty);
+          if (action.type === 'moveRobber') {
+            const sense = new Sense(view);
+            const hex = sense.hex(action.hex);
+            if (hex) {
+              const mine = pipsFor(sense, hex, seat);
+              if (mine > 0) {
+                const rival = sense
+                  .rivals()
+                  .reduce((best, other) => Math.max(best, pipsFor(sense, hex, other)), 0);
+                if (rival === 0) offenders.push(`${difficulty} seed ${seed}: ${action.hex} mine ${mine}`);
+              }
+            }
+          }
+          const result = applyAction(state, seat, action);
+          expect(result.ok).toBe(true);
+          if (!result.ok) break;
+          state = result.state;
+          guard += 1;
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
   });
 });
 

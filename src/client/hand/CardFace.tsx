@@ -42,12 +42,14 @@ interface CardFaceProps {
   selected: boolean;
   duplicateCount: number;
   letters: boolean;
+  /** Offsets from this card's final slot back to the deck counter. */
+  deal?: { dx: number; dy: number; delay: number } | null;
   onPlay: () => void;
   onInspect: () => void;
 }
 
 /** One ledger card. Name one line, rules text verbatim, flavor in the footer. */
-export function CardFace({ card, def, playable, needsChoice, selected, duplicateCount, letters, onPlay, onInspect }: CardFaceProps): JSX.Element {
+export function CardFace({ card, def, playable, needsChoice, selected, duplicateCount, letters, deal, onPlay, onInspect }: CardFaceProps): JSX.Element {
   const primary = primaryResource(def);
   const costs = def.cost
     ? RESOURCES.filter((resource) => (def.cost?.[resource] ?? 0) > 0).map((resource) => ({ resource, count: def.cost?.[resource] ?? 0 }))
@@ -59,8 +61,15 @@ export function CardFace({ card, def, playable, needsChoice, selected, duplicate
 
   return (
     <div
-      className={`card-slot${selected ? ' is-selected' : ''}`}
-      style={{ '--rot': '0deg' } as React.CSSProperties}
+      className={`card-slot${selected ? ' is-selected' : ''}${deal ? ' is-dealing' : ''}`}
+      style={{
+        '--rot': '0deg',
+        ...(deal ? {
+          '--deal-dx': `${deal.dx}px`,
+          '--deal-dy': `${deal.dy}px`,
+          '--deal-delay': `${deal.delay}ms`,
+        } : {}),
+      } as React.CSSProperties}
     >
       <button
         type="button"

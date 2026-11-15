@@ -198,8 +198,7 @@ export function isLegalAction(view: GameView, action: GameAction): boolean {
 // Conservative fallback: the documented "bot must always find a move" path
 // ---------------------------------------------------------------------------
 
-function firstDiscard(view: GameView, required: number): PartialResources {
-  const held = view.players[view.you]?.resources;
+function firstDiscard(view: GameView, required: number): PartialResources {  const held = view.players[view.you]?.resources;
   const out: PartialResources = {};
   let left = required;
   if (!held) return out;
@@ -213,6 +212,13 @@ function firstDiscard(view: GameView, required: number): PartialResources {
     }
   }
   return out;
+}
+
+/** Does the bot itself collect from this hex? Read-only, from the public view. */
+function producesForSelf(view: GameView, hexId: HexId): boolean {
+  const hex = view.board.hexes.find((entry) => entry.id === hexId);
+  if (!hex || hex.terrain === 'desert') return false;
+  return hex.vertices.some((vertex) => view.buildings[vertex]?.owner === view.you);
 }
 
 function conservativeAction(view: GameView): GameAction {
@@ -234,7 +240,11 @@ function conservativeAction(view: GameView): GameAction {
   }
   if (legal.canRoll) return { type: 'roll' };
   if (legal.robber) {
-    const hex = legal.robber.hexes[0] as HexId;
+    // Last line of defence: never a hex the bot itself produces on while any
+    // other legal hex exists. Same rule as `selfHarmTier`, without the Sense.
+    const hexes = legal.robber.hexes;
+    const quiet = hexes.find((candidate) => !producesForSelf(view, candidate)) ?? hexes[0];
+    const hex = quiet as HexId;
     const victim = legal.robber.victims[hex]?.[0];
     return victim === undefined
       ? { type: 'moveRobber', hex }

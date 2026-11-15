@@ -13,6 +13,8 @@ interface LedgerRailProps {
   letters: boolean;
   /** Seats a bot is flying right now, straight from the socket snapshot. */
   pilotSeats: number[];
+  /** Seats whose discard just went back into their deck. */
+  reshufflingSeats: number[];
 }
 
 export function LedgerRail({
@@ -24,6 +26,7 @@ export function LedgerRail({
   onCloseInspector,
   letters,
   pilotSeats,
+  reshufflingSeats,
 }: LedgerRailProps): JSX.Element {
   return (
     <aside className="ledger-rail" aria-label="Player ledger">
@@ -46,6 +49,7 @@ export function LedgerRail({
             isCurrent={player.seat === view.currentSeat}
             isYou={player.seat === view.you}
             isPilot={pilotSeats.includes(player.seat)}
+            reshuffling={reshufflingSeats.includes(player.seat)}
             letters={letters}
           />
         ))}
@@ -59,12 +63,14 @@ export function LedgerRail({
 export function SeatRibbon({
   view,
   pilotSeats,
+  reshufflingSeats,
   expanded,
   onExpand,
   letters,
 }: {
   view: GameView;
   pilotSeats: number[];
+  reshufflingSeats: number[];
   expanded: number | null;
   onExpand: (seat: number | null) => void;
   letters: boolean;
@@ -81,6 +87,7 @@ export function SeatRibbon({
             isCurrent={entry.seat === view.currentSeat}
             isYou={entry.seat === view.you}
             isPilot={pilotSeats.includes(entry.seat)}
+            reshuffling={reshufflingSeats.includes(entry.seat)}
             compact
             letters={letters}
             onExpand={() => onExpand(expanded === entry.seat ? null : entry.seat)}
@@ -95,6 +102,7 @@ export function SeatRibbon({
             isCurrent={player.seat === view.currentSeat}
             isYou={player.seat === view.you}
             isPilot={pilotSeats.includes(player.seat)}
+            reshuffling={reshufflingSeats.includes(player.seat)}
             letters={letters}
           />
           <button type="button" className="btn btn-ghost btn-small" onClick={() => onExpand(null)}>Close</button>

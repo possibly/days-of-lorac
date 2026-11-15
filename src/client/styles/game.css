@@ -168,7 +168,7 @@
   gap: 3px;
   font-size: 10.5px;
 }
-.chat-form.is-compact input { height: 28px; font-size: 11px; }
+.chat-form.is-compact input { height: 28px; font-size: var(--field-text); }
 .chat-form.is-compact .btn { min-height: 28px; }
 
 .game-body {
@@ -189,7 +189,9 @@
   grid-template-columns: minmax(0, 1fr);
   /* Board first: the hand row and the action bar are trimmed to give it
      height, because the board is height-bound and width-rich. */
-  grid-template-rows: minmax(0, 1fr) 56px 244px;
+  /* The action bar row is auto so a wrapped button cluster grows instead of
+     spilling into the hand row. */
+  grid-template-rows: minmax(0, 1fr) minmax(56px, auto) 244px;
   gap: 10px;
   position: relative;
 }
@@ -306,43 +308,6 @@
   z-index: 30;
 }
 
-.board-a11y {
-  position: absolute;
-  left: 12px;
-  bottom: 10px;
-  z-index: 5;
-  max-width: 300px;
-}
-.board-a11y > .btn {
-  color: var(--parchment-100);
-  background: rgba(11, 26, 21, 0.72);
-  border-color: rgba(201, 167, 95, 0.5);
-}
-.target-list {
-  margin-top: 4px;
-  max-height: 160px;
-  overflow-y: auto;
-  background: rgba(11, 26, 21, 0.9);
-  border: 1px solid var(--gold-600);
-  border-radius: 3px;
-  padding: 4px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.target-list-item {
-  width: 100%;
-  text-align: left;
-  padding: 6px 7px;
-  background: transparent;
-  border: none;
-  color: var(--parchment-200);
-  font-size: 11px;
-  border-radius: 2px;
-  cursor: pointer;
-}
-.target-list-item:hover { background: rgba(143, 192, 169, 0.16); }
-
 /* ---------- action bar ---------- */
 
 .action-bar {
@@ -377,14 +342,76 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  flex: none;
+  /* Must be allowed to shrink: `flex: none` let a wide cluster (victim chips,
+     build chips) grow past the bar and out of the viewport instead of wrapping
+     onto a second line. */
+  flex: 0 1 auto;
+  min-width: 0;
   flex-wrap: wrap;
   justify-content: flex-end;
+  /* The action phase has no prompt, so the cluster is the only child. Keep it
+     on the right the way a prompt would have pushed it. */
+  margin-left: auto;
 }
 .action-note {
   font-size: 11px;
   color: var(--ink-500);
   font-style: italic;
+}
+/* Build picker: three chips, name plus cost pips, wrapping to a second row
+   when the phone is narrow. */
+/* Build picker: prompt and Cancel on the first row, the three chips under it.
+   Stacking is what keeps Cancel on screen when the prompt and three chips
+   cannot share a phone's action bar. */
+.action-bar.is-build {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 8px;
+}
+.action-bar.is-build .prompt-wrap { flex: 1 1 auto; }
+.action-bar.is-build .action-buttons {
+  flex: 1 1 100%;
+  min-width: 0;
+  justify-content: flex-start;
+}
+.action-bar.is-build .build-chips { min-width: 0; }
+.action-bar.is-build > .btn {
+  font-size: 11px;
+  min-height: 30px;
+  padding: 3px 10px;
+}
+.build-chips {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.build-chip {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid rgba(160, 127, 61, 0.6);
+  border-radius: 3px;
+  background: rgba(255, 253, 245, 0.7);
+  color: var(--ink-900);
+  cursor: pointer;
+}
+.build-chip:hover:not(:disabled) {
+  border-color: var(--gold-600);
+  background: rgba(232, 207, 152, 0.45);
+}
+.build-chip:disabled { opacity: 0.45; cursor: not-allowed; }
+.build-chip-name {
+  font-family: var(--sans);
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.build-chip-cost {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 .action-banner {
   padding: 3px 7px;
@@ -397,16 +424,12 @@
   color: var(--ink-700);
   white-space: nowrap;
 }
-.end-turn.pulse { animation: endPulse 800ms ease-in-out infinite; }
-@keyframes endPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(232, 207, 152, 0.5); }
-  50% { box-shadow: 0 0 0 4px rgba(232, 207, 152, 0); }
-}
 
 .victim-chips {
   display: flex;
   gap: 5px;
   flex-wrap: wrap;
+  min-width: 0;
 }
 .victim-chip {
   min-height: 44px;
@@ -427,6 +450,58 @@
 }
 .victim-name { font-size: 11px; font-weight: 600; }
 .victim-count { font-size: 10px; color: var(--ink-500); font-family: var(--mono); }
+
+/*
+ * Victim picker on a narrow action bar: prompt, then a chip row that scrolls
+ * sideways, then the commit buttons. The chips used to sit inline with the
+ * buttons, and three of them plus "Steal 1" ran off the right edge of a phone,
+ * leaving both the last player and the button unreachable. The commit button
+ * now always sits under the chips, so it never depends on scrolling.
+ */
+@media (max-width: 760px) {
+  .action-bar.has-victims {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+  }
+  .action-bar.has-victims > .prompt-line {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .action-bar.has-victims .action-buttons {
+    flex: 1 1 100%;
+    min-width: 0;
+    justify-content: flex-start;
+    gap: 6px;
+  }
+  .action-bar.has-victims .victim-chips {
+    flex: 1 1 100%;
+    min-width: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+  .action-bar.has-victims .victim-chips::-webkit-scrollbar { display: none; }
+  /* Fade the edge so a cut-off chip reads as "swipe for more". */
+  .action-bar.has-victims .victim-chips.is-scrollable {
+    mask-image: linear-gradient(90deg, #000 calc(100% - 22px), transparent);
+    -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 22px), transparent);
+  }
+  /* A chip never shrinks into an unreadable stub; the row scrolls instead. */
+  .action-bar.has-victims .victim-chip {
+    flex: none;
+    max-width: 46vw;
+  }
+  .action-bar.has-victims .victim-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .victim-count { font-size: 9.5px; }
+}
 
 /* ---------- supply rail ---------- */
 
@@ -595,6 +670,11 @@
   text-align: left;
 }
 .seat-chip.is-current { background: rgba(201, 167, 95, 0.16); box-shadow: inset 0 0 0 1px rgba(232, 207, 152, 0.4); }
+.seat-chip.is-reshuffling { animation: seatShuffle 900ms ease-out; }
+@keyframes seatShuffle {
+  0%, 100% { box-shadow: inset 0 0 0 0 rgba(232, 207, 152, 0); }
+  30%, 65% { box-shadow: inset 0 0 0 2px var(--gold-300); }
+}
 .seat-chip-name {
   font-size: 11.5px;
   font-weight: 600;
@@ -603,17 +683,74 @@
   white-space: nowrap;
 }
 .seat-chip-vp { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--gold-300); }
+/* The two 2-VP award tracks, sat at the end of the resource row: pennant plus
+   the number that decides the award (route length, renown). Gold means the seat
+   holds it, so a phone player sees both races without opening a panel. */
+/* Footer row of the compact chip: badges left, award tracks right. Owning a
+   row of its own keeps them clear of both the resource run and the BOT badge. */
+.seat-chip-foot {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+}
+.seat-chip-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+}
+.seat-chip-badges:empty { display: none; }
+.seat-awards {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+  margin-left: auto;
+}
+
+.mini-award {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  padding: 0 2px;
+  border: 1px solid rgba(232, 207, 152, 0.18);
+  border-radius: 2px;
+  font-size: 9.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--parchment-200);
+  opacity: 0.7;
+}
+.mini-award .award-mark { width: 12px; height: 12px; }
+.mini-award.is-held {
+  opacity: 1;
+  color: var(--gold-300);
+  border-color: rgba(232, 207, 152, 0.55);
+  background: rgba(232, 207, 152, 0.12);
+}
+
 .seat-chip-res {
   grid-column: 1 / -1;
   display: flex;
+  align-items: center;
   gap: 4px;
+  /* A hoarded resource count must not push the renown mark out of the chip. */
+  min-width: 0;
+  overflow: hidden;
 }
+.seat-chip-res .mini-res { min-width: 0; }
 .mini-res {
   display: inline-flex;
   align-items: center;
   gap: 1px;
   font-size: 9.5px;
   color: var(--parchment-200);
+  /* A hair of separation so 4 4 4 4 4 does not read as 44444. */
+  margin-right: 2px;
 }
 .mini-res.is-zero { opacity: 0.4; }
 .mini-res .res-icon { color: var(--parchment-200); }
@@ -650,7 +787,7 @@
   }
   .ledger-rail { display: none; }
   .center-column {
-    grid-template-rows: 50px minmax(0, 1fr) 54px 182px;
+    grid-template-rows: 50px minmax(0, 1fr) auto 182px;
     gap: 8px;
     flex: 1;
     min-height: 0;
@@ -663,6 +800,8 @@
   .board-talk { font-size: 10px; max-width: 42%; padding: 3px 6px; top: 7px; right: 7px; }
   .action-bar { min-height: 54px; padding: 5px 9px; }
   .prompt-line { font-size: 12px; }
+  .build-chip { min-height: 32px; padding: 3px 6px; gap: 4px; }
+  .build-chip-name { font-size: 11px; }
   .seat-chip { min-height: 46px; }
   .supply-rail {
     position: fixed;
@@ -672,11 +811,23 @@
     width: 380px;
     max-width: 92vw;
     border-radius: 0;
-    transform: translateX(102%);
-    transition: transform 180ms ease-out;
+    /* Keep a landscape notch off the rail's edge. Zero in portrait. */
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    /* Closed: slid out by exactly its own width, so its left edge lands on the
+       viewport's right edge and the document gains no scrollable sliver.
+       102% used to leave 2% poking past the edge, which iOS turns into a
+       horizontal pan. */
+    transform: translateX(100%);
+    visibility: hidden;
+    transition: transform 180ms ease-out, visibility 0s linear 180ms;
     z-index: 60;
   }
-  .supply-rail.is-open { transform: translateX(0); }
+  .supply-rail.is-open {
+    transform: translateX(0);
+    visibility: visible;
+    transition: transform 180ms ease-out, visibility 0s;
+  }
   .rail-close { display: block; }
   .drawer-scrim {
     display: block;
@@ -687,8 +838,6 @@
     z-index: 50;
   }
   .toasts { bottom: 196px; }
-  .board-a11y { left: 8px; bottom: 6px; }
-  .target-list { max-height: 120px; }
 }
 
 @media (max-height: 780px) and (min-width: 1181px) {
@@ -708,7 +857,7 @@
   .header-btn { font-size: 10px; padding: 3px 5px; min-height: 28px; }
   .game-body { padding: 6px; gap: 6px; }
   .center-column {
-    grid-template-rows: 54px minmax(0, 1fr) 50px 164px;
+    grid-template-rows: 54px minmax(0, 1fr) auto 174px;
     gap: 6px;
   }
   .seat-ribbon { gap: 4px; }
@@ -725,9 +874,15 @@
   .board-talk { font-size: 9px; max-width: 46%; padding: 3px 5px; top: 6px; right: 6px; }
   .action-bar { min-height: 50px; padding: 4px 8px; gap: 6px; }
   .prompt-line { font-size: 11.5px; }
+  .build-chip { min-height: 30px; padding: 3px 6px; gap: 3px; }
+  .build-chip-name { font-size: 10.5px; }
+  .build-chip-cost { gap: 3px; }
   .action-buttons { gap: 4px; }
   .action-buttons .btn { font-size: 11px; padding: 4px 7px; min-height: 32px; }
-  .supply-rail { width: 100vw; max-width: 100vw; top: 46px; }
+  /* Both edges pinned instead of width: 100vw. 100vw ignores the scrollbar and
+     rounds against the device pixel grid, which is the other way a full-width
+     drawer ends up a hair wider than the screen. */
+  .supply-rail { left: 0; right: 0; width: auto; max-width: none; top: 46px; }
   /* Notifications sit under the header on a phone, clear of the board and
      the hand. */
   .toasts {
@@ -738,8 +893,6 @@
     transform: none;
     align-items: stretch;
   }
-  .board-a11y { left: 6px; bottom: 4px; }
-  .board-a11y > .btn { font-size: 9px; padding: 2px 5px; }
   .reconnect-banner, .pilot-strip { font-size: 10px; }
 }
 
@@ -749,7 +902,7 @@
   .game-header { height: 40px; }
   .game-body { padding: 6px; gap: 6px; }
   .center-column {
-    grid-template-rows: minmax(0, 1fr) 42px 116px;
+    grid-template-rows: minmax(0, 1fr) auto 116px;
     gap: 6px;
   }
   /* Four seat chips do not fit in 390px of height; the header and action bar

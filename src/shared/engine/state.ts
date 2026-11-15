@@ -32,7 +32,7 @@ import type {
   ResourceMap,
   Seat,
 } from '../types.js';
-import { addLog, playerName } from './log.js';
+import { addLog, hexLabel, playerName } from './log.js';
 import { randomInt, shuffleWithRng } from './rng.js';
 import { buildBoard } from './board.js';
 import { refreshDerived } from './awards.js';
@@ -120,6 +120,7 @@ export function createGame(options: CreateGameOptions): GameState {
       discard: [],
       played: [],
       purchases: 0,
+      bought: {},
     });
   }
 
@@ -228,6 +229,7 @@ export function cloneState(state: GameState): GameState {
       discard: cloneCardList(player.discard),
       played: cloneCardList(player.played),
       purchases: player.purchases,
+      bought: { ...player.bought },
     })),
     market: { ...state.market },
     dice: state.dice
@@ -309,7 +311,7 @@ export function performRobberMove(
   victimSeat?: Seat,
 ): void {
   draft.robberHex = hex;
-  addLog(draft, 'robber', `${playerName(draft, seat)} moves the robber to ${hex}.`, seat, { hex });
+  addLog(draft, 'robber', `${playerName(draft, seat)} moves the robber to ${hexLabel(draft, hex)}.`, seat, { hex });
 
   if (victimSeat === undefined) return;
   const victim = draft.players[victimSeat];

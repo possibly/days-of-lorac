@@ -2,7 +2,7 @@
  * Log helpers. Every entry is public-safe: no deck order, no hand contents.
  * State keeps every entry; `viewFor` trims to the last 120 for the wire.
  */
-import type { GameState, LogKind, Seat } from '../types.js';
+import type { GameState, HexId, LogKind, Seat } from '../types.js';
 
 export function playerName(state: GameState, seat: Seat | null): string {
   if (seat === null) return 'The island';
@@ -37,4 +37,16 @@ export function describeResources(resources: Partial<Record<string, number>>): s
     parts.push(`${count} ${resource}`);
   }
   return parts.length > 0 ? parts.join(', ') : 'nothing';
+}
+
+/**
+ * "the ore 8" for a hex, never the internal id. Log lines are read in the
+ * drawer and under the board, where "B2" is noise the player has to decode.
+ */
+export function hexLabel(state: GameState, hexId: HexId): string {
+  const hex = state.board.hexes.find((item) => item.id === hexId);
+  if (!hex) return 'another hex';
+  if (hex.terrain === 'desert') return 'the desert';
+  if (hex.token === null) return `an empty ${hex.terrain} hex`;
+  return `the ${hex.terrain} ${hex.token}`;
 }

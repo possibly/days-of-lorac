@@ -57,6 +57,31 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* "2 bought": a small tag next to the pile name so the market shows what this
+   seat has already bought without opening anything else. */
+.row-owned {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+  padding: 0 4px;
+  border-radius: 2px;
+  background: rgba(160, 127, 61, 0.18);
+  font-family: var(--sans);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--ink-700);
+  white-space: nowrap;
+}
+.row-owned::before {
+  content: "";
+  width: 5px;
+  height: 7px;
+  border: 1px solid currentColor;
+  border-radius: 1px;
+  opacity: 0.7;
+}
 .row-stock {
   margin-left: auto;
   font-family: var(--sans);

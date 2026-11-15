@@ -68,7 +68,7 @@ export function setupSettlement(
   addLog(
     draft,
     'setup',
-    `${playerName(draft, seat)} places a starting settlement on ${vertex}.`,
+    `${playerName(draft, seat)} places a starting settlement.`,
     seat,
     { step: 'settlement', vertex, index: setup.index },
   );
@@ -97,7 +97,7 @@ export function setupRoad(draft: GameState, seat: Seat, edge: EdgeId): EngineFai
   addLog(
     draft,
     'setup',
-    `${playerName(draft, seat)} places a starting road on ${edge}.`,
+    `${playerName(draft, seat)} places a starting road.`,
     seat,
     { step: 'road', edge, index: setup.index },
   );

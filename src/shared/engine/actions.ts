@@ -11,6 +11,7 @@ import {
   RESOURCE_LIMIT,
   countResources,
 } from '../constants.js';
+import { getCard } from '../cards.js';
 import { RESOURCES } from '../types.js';
 import type {
   ActionResult,
@@ -328,7 +329,7 @@ function buildRoad(draft: GameState, seat: Seat, edge: EdgeId): EngineFailure | 
 
   payCost(player, BUILD_COSTS.road);
   draft.roads[edge] = seat;
-  addLog(draft, 'build', `${player.name} builds a road on ${edge}.`, seat, { edge });
+  addLog(draft, 'build', `${player.name} builds a road.`, seat, { edge });
   return null;
 }
 
@@ -359,7 +360,7 @@ function buildSettlement(draft: GameState, seat: Seat, vertex: VertexId): Engine
 
   payCost(player, BUILD_COSTS.settlement);
   draft.buildings[vertex] = { owner: seat, type: 'settlement' };
-  addLog(draft, 'build', `${player.name} builds a settlement on ${vertex}.`, seat, { vertex });
+  addLog(draft, 'build', `${player.name} builds a settlement.`, seat, { vertex });
   return null;
 }
 
@@ -383,7 +384,7 @@ function buildCity(draft: GameState, seat: Seat, vertex: VertexId): EngineFailur
 
   payCost(player, BUILD_COSTS.city);
   draft.buildings[vertex] = { owner: seat, type: 'city' };
-  addLog(draft, 'build', `${player.name} upgrades ${vertex} to a city.`, seat, { vertex });
+  addLog(draft, 'build', `${player.name} upgrades a settlement to a city.`, seat, { vertex });
   return null;
 }
 
@@ -544,12 +545,31 @@ function endTurn(draft: GameState, seat: Seat): EngineFailure | null {
   const player = draft.players[seat];
   if (!player) return failure('SEAT_INVALID', 'Unknown seat.');
 
-  if (player.hand.length > 0 || player.played.length > 0) {
-    const discarded = player.hand.length + player.played.length;
-    player.discard.push(...player.hand, ...player.played);
-    player.hand = [];
-    player.played = [];
-    addLog(draft, 'info', `${player.name} discards ${discarded} cards.`, seat, { count: discarded });
+  // Played cards always leave. Unplayed cards stay in hand, so holding a
+  // resource across a turn is a real choice: the card dodges a seven and the
+  // resource limit, but you draw fewer new cards next upkeep. Charters are the
+  // exception. They cannot be played, so keeping one would clog the hand for
+  // the rest of the game.
+  const kept = player.hand.filter((card) => getCard(card.defId).kind !== 'charter');
+  const charters = player.hand.filter((card) => getCard(card.defId).kind === 'charter');
+  const discarded = [...player.played, ...charters];
+  player.discard.push(...discarded);
+  player.hand = kept;
+  player.played = [];
+
+  if (discarded.length > 0) {
+    addLog(draft, 'info', `${player.name} discards ${discarded.length} cards.`, seat, {
+      count: discarded.length,
+    });
+  }
+  if (kept.length > 0) {
+    addLog(
+      draft,
+      'info',
+      `${player.name} keeps ${kept.length} ${kept.length === 1 ? 'card' : 'cards'} for next turn.`,
+      seat,
+      { count: kept.length },
+    );
   }
 
   draft.tradeOffer = null;
@@ -567,6 +587,7 @@ function endTurn(draft: GameState, seat: Seat): EngineFailure | null {
     seat: nextSeat,
   });
 
+  // Draw-to-five, not draw-five: a kept card costs you one draw next turn.
   const next = draft.players[nextSeat];
   if (next) {
     while (next.hand.length < HAND_SIZE) {

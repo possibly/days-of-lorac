@@ -15,15 +15,13 @@ interface BoardFrameProps {
   floaters: Floater[];
   flashHexes: string[];
   onSelect: (target: BoardTarget) => void;
-  targetList: { id: string; kind: BoardTarget['kind']; label: string }[];
   /** Announced under the board; e.g. what the last roll produced. */
   tableTalk: string;
 }
 
 /**
- * The board frame: mat, SVG, dice tray, shared tooltip layer, and the
- * accessible "List legal placements" disclosure. All geometry is in the SVG;
- * this component only owns chrome and the tooltip.
+ * The board frame: mat, SVG, dice tray, and shared tooltip layer. All geometry
+ * is in the SVG; this component only owns chrome and the tooltip.
  */
 export function BoardFrame({
   view,
@@ -35,7 +33,6 @@ export function BoardFrame({
   floaters,
   flashHexes,
   onSelect,
-  targetList,
   tableTalk,
 }: BoardFrameProps): JSX.Element {
   const index = indexBoard(view.board);
@@ -44,7 +41,6 @@ export function BoardFrame({
   const timer = useRef<number | undefined>(undefined);
   const dismissTimer = useRef<number | undefined>(undefined);
   const coarse = useRef(false);
-  const [listOpen, setListOpen] = useState(false);
   const [diceAnimate, setDiceAnimate] = useState(false);
   const lastRoll = useRef<string>('');
 
@@ -63,10 +59,6 @@ export function BoardFrame({
     const stop = window.setTimeout(() => setDiceAnimate(false), 700);
     return () => window.clearTimeout(stop);
   }, [view.dice, view.gameId, view.turn]);
-
-  useEffect(() => {
-    setListOpen(false);
-  }, [mode]);
 
   useEffect(() => {
     // Touch has no pointerleave, so a hover tooltip would stick around and
@@ -141,33 +133,7 @@ export function BoardFrame({
         {dice ? <span className="dice-total">{dice.total}</span> : <span className="dice-total dice-empty">2d6</span>}
       </div>
 
-      <div className="board-talk" aria-live="polite">{tableTalk}</div>
-
-      {targetList.length > 0 ? (
-        <div className="board-a11y">
-          <button type="button" className="btn btn-ghost btn-small" aria-expanded={listOpen} onClick={() => setListOpen((open) => !open)}>
-            {listOpen ? 'Hide legal placements' : `List legal placements (${targetList.length})`}
-          </button>
-          {listOpen ? (
-            <ul className="target-list">
-              {targetList.map((item) => (
-                <li key={`${item.kind}:${item.id}`}>
-                  <button
-                    type="button"
-                    className="target-list-item"
-                    onClick={() => {
-                      onSelect({ kind: item.kind, id: item.id });
-                      setListOpen(false);
-                    }}
-                  >
-                    {item.label}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
-      ) : null}
+      {tableTalk ? <div className="board-talk" aria-live="polite">{tableTalk}</div> : null}
 
       {tip && tip.show ? (
         <div className="tooltip" style={{ transform: `translate(${tip.x}px, ${tip.y}px)` }} role="tooltip">

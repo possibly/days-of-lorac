@@ -270,7 +270,9 @@
   stroke: #f6edd8;
   stroke-width: 0.05;
   stroke-opacity: 0.85;
-  animation: floatUp 900ms ease-out forwards;
+  /* 4.3s: a fast rise, then a long readable hold with a slow drift, then out.
+     Matches FLOATER_LIFE_MS in GameScreen, which takes the text away. */
+  animation: floatUp 4200ms ease-out forwards;
 }
 .floater-blocked .floater-text {
   fill: #f6edd8;
@@ -279,16 +281,19 @@
 }
 @keyframes floatUp {
   0% { opacity: 0; transform: translateY(0); }
-  18% { opacity: 1; }
+  5% { opacity: 1; }
+  82% { opacity: 1; }
   100% { opacity: 0; transform: translateY(-0.22px); }
 }
 
 .reduced-motion .robber,
 .reduced-motion .target-setup .target-ring,
 .reduced-motion .target-edge-ring { animation: none; }
-.reduced-motion .floater-text { animation: floaterFade 400ms ease-out forwards; }
+/* Reduced motion keeps the numbers up for the same time, without the travel. */
+.reduced-motion .floater-text { animation: floaterFade 4200ms linear forwards; }
 @keyframes floaterFade {
   0% { opacity: 0; }
-  30% { opacity: 1; }
+  4% { opacity: 1; }
+  85% { opacity: 1; }
   100% { opacity: 0; }
 }
