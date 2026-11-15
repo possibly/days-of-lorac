@@ -91,6 +91,11 @@ export function BoardFrame({
       return;
     }
     const text = targetLabel(view, index, target);
+    // Nothing to say (an empty edge) means no bubble at all, not an empty one.
+    if (!text) {
+      setTip(null);
+      return;
+    }
     if (dismissTimer.current !== undefined) window.clearTimeout(dismissTimer.current);
     if (coarse.current) {
       dismissTimer.current = window.setTimeout(() => setTip(null), 2200);

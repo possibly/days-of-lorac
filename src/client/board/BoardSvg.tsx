@@ -330,7 +330,7 @@ function NumberToken({ x, y, token, s, flash }: { x: number; y: number; token: n
   const pipY = y + 0.17 * s;
   const startX = x - ((pips - 1) * 0.062 * s) / 2;
   return (
-    <g className={`token${strong ? ' token-strong' : ''}${flash ? ' token-flash' : ''}`} aria-label={`${token}, ${pips} of 36`}>
+    <g className={`token${strong ? ' token-strong' : ''}${flash ? ' token-flash' : ''}`} aria-label={`Number ${token}`}>
       <circle cx={round(x)} cy={round(y)} r={round(0.3 * s)} className="token-disc" />
       {strong ? <circle cx={round(x)} cy={round(y)} r={round(0.36 * s)} className="token-ring-outer" /> : null}
       {strong ? <circle cx={round(x)} cy={round(y)} r={round(0.325 * s)} className="token-ring-inner" /> : null}
@@ -684,11 +684,10 @@ export function hexLabel(view: GameView, index: BoardIndex, hexId: string): stri
   if (!hex) return '';
   const terrain = hex.terrain === 'desert' ? 'Desert' : `${hex.terrain[0]?.toUpperCase()}${hex.terrain.slice(1)}`;
   const token = hex.token;
-  const pips = token === null ? 0 : 6 - Math.abs(7 - token);
   const mine = hex.vertices.filter((id) => view.buildings[id]?.owner === view.you).length;
   const theirs = hex.vertices.filter((id) => view.buildings[id] && view.buildings[id]?.owner !== view.you).length;
   const bits: string[] = [];
-  if (token !== null) bits.push(`${terrain} ${token}. Pays ${pips} of 36.`);
+  if (token !== null) bits.push(`${terrain} ${token}.`);
   else bits.push(`${terrain}. No number token.`);
   if (hex.id === view.robberHex) bits.push('Robber blocks this hex.');
   if (mine > 0) bits.push(`You have ${mine} building${mine === 1 ? '' : 's'} here.`);
@@ -705,35 +704,28 @@ export function vertexLabel(view: GameView, index: BoardIndex, vertexId: string)
   const detail = hexes
     .map((hex) => `${hex.terrain === 'desert' ? 'Desert' : `${hex.terrain[0]?.toUpperCase()}${hex.terrain.slice(1)}`} ${hex.token ?? '-'}`)
     .join(', ');
-  const pips = hexes.reduce((sum, hex) => sum + (hex.token === null ? 0 : 6 - Math.abs(7 - hex.token)), 0);
   if (building) {
     const name = view.players[building.owner]?.name ?? `Player ${building.owner + 1}`;
-    return `${name}'s ${building.type}. Touches ${detail}. ${pips} of 36.`;
+    return `${name}'s ${building.type}. Touches ${detail}.`;
   }
   const neighbours = view.board.vertices
     .filter((other) => other.id !== vertexId && other.hexes.some((h) => vertex.hexes.includes(h)) && view.buildings[other.id])
     .map((other) => view.players[view.buildings[other.id]?.owner ?? 0]?.name)
     .filter(Boolean);
   const suffix = neighbours.length > 0 ? ` Too close to ${neighbours[0]}'s building.` : '';
-  return `Empty corner. Touches ${detail}. ${pips} of 36.${suffix}`;
+  return `Empty corner. Touches ${detail}.${suffix}`;
 }
 
 export function edgeLabel(view: GameView, index: BoardIndex, edgeId: string): string {
   const edge = index.edge.get(edgeId);
   if (!edge) return '';
   const owner = view.roads[edgeId];
-  if (owner !== undefined) {
-    const name = view.players[owner]?.name ?? `Player ${owner + 1}`;
-    const length = view.awards.longestRoadLength[owner] ?? 0;
-    return `${name}'s road. Route length ${length}.`;
-  }
-  const connected = [edge.a, edge.b].some((vertexId) => {
-    const vertex = index.vertex.get(vertexId);
-    if (!vertex) return false;
-    if (view.buildings[vertexId]?.owner === view.you) return true;
-    return vertex.edges.some((other) => view.roads[other] === view.you);
-  });
-  return `Empty edge. ${connected ? 'Touches your road at one end.' : 'Not connected to your network.'}`;
+  // An empty edge has nothing to say. The build bar lists the legal edges, so
+  // "empty edge, not connected" was a tooltip repeating the highlight.
+  if (owner === undefined) return '';
+  const name = view.players[owner]?.name ?? `Player ${owner + 1}`;
+  const length = view.awards.longestRoadLength[owner] ?? 0;
+  return `${name}'s road. Route length ${length}.`;
 }
 
 export function targetLabel(view: GameView, index: BoardIndex, target: BoardTarget | null): string {

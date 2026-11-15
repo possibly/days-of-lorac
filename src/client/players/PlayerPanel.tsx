@@ -170,7 +170,7 @@ export function PlayerPanel({ view, player, isCurrent, isYou, isPilot, reshuffli
           <span
             key={resource}
             className={`pp-res-cell${player.resources[resource] === 0 ? ' is-zero' : ''}`}
-            title={`${RESOURCE_LABEL[resource]} ${player.resources[resource]}. ${productionLine(view, player, resource)}`}
+            title={`${RESOURCE_LABEL[resource]} ${player.resources[resource]}.`}
           >
             <ResourceIcon resource={resource} size={14} letters={letters} />
             <span className="pp-res-count">{player.resources[resource]}</span>
@@ -235,17 +235,3 @@ export function PlayerPanel({ view, player, isCurrent, isYou, isPilot, reshuffli
   );
 }
 
-/** "You produce 4 of 36 on wood." Derived from board pips, not legality. */
-function productionLine(view: GameView, player: PlayerView, resource: Resource): string {
-  let pips = 0;
-  for (const hex of view.board.hexes) {
-    if (hex.terrain !== resource || hex.token === null || hex.id === view.robberHex) continue;
-    for (const vertexId of hex.vertices) {
-      const building = view.buildings[vertexId];
-      if (!building || building.owner !== player.seat) continue;
-      pips += (6 - Math.abs(7 - hex.token)) * (building.type === 'city' ? 2 : 1);
-      break;
-    }
-  }
-  return `You produce ${pips} of 36 on ${resource}.`;
-}

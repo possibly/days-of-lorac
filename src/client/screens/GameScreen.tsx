@@ -555,18 +555,14 @@ export function GameScreen({
   }, [cancel, confirmRobber, drawerOpen, hand, inspectedIid, onRules, onToggleSound, pending, play, playableIids, selection, send, view.legal.canEndTurn, view.legal.canRoll, view.phase]);
 
   // ----- table talk & offer banner ----------------------------------------
-  // The board bubble only speaks when something must not be missed: a seven,
-  // and the win. Dice totals already sit in the dice tray, production already
-  // floats over the paying hexes, and every line is in the ship's log, so the
-  // old "6 + 3 = 9. 1 resources produced." plus a copy of the latest log line
-  // was text over the board saying what the board had just shown.
+  // The board bubble only speaks for the win. Dice totals sit in the dice tray,
+  // production floats over the paying hexes, the prompt says what can be done
+  // next, and every line is in the ship's log. The old seven reminder and the
+  // production recap were text over the board repeating what was already there.
   const tableTalk = useMemo(() => {
-    if (view.phase === 'gameOver') {
-      const winner = view.players.find((player) => player.seat === view.winner);
-      return winner ? `${winner.name} wins at ${winner.vp}.` : 'The game is over.';
-    }
-    if (view.dice?.total === 7) return 'Seven. Discards, then the robber moves.';
-    return '';
+    if (view.phase !== 'gameOver') return '';
+    const winner = view.players.find((player) => player.seat === view.winner);
+    return winner ? `${winner.name} wins at ${winner.vp}.` : 'The game is over.';
   }, [view]);
 
   const offer = view.tradeOffer;
