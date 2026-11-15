@@ -23,23 +23,46 @@ export function HandDock({ view, playableIids, choiceIids, selectedIid, onPlay, 
   const you = view.players[view.you];
   const dock = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(872);
+  const [cardWidth, setCardWidth] = useState(152);
   const [spread, setSpread] = useState(false);
+  const [phone, setPhone] = useState(false);
+
+  useEffect(() => {
+    // Portrait phones and short landscape viewports both want the flat row.
+    const narrow = window.matchMedia('(max-width: 640px)');
+    const short = window.matchMedia('(max-height: 520px)');
+    const sync = (): void => setPhone(narrow.matches || short.matches);
+    sync();
+    narrow.addEventListener('change', sync);
+    short.addEventListener('change', sync);
+    return () => {
+      narrow.removeEventListener('change', sync);
+      short.removeEventListener('change', sync);
+    };
+  }, []);
 
   useEffect(() => {
     const node = dock.current;
     if (!node) return undefined;
+    // The card width lives in CSS (`--card-w`) so the fan maths and the
+    // rendered card stay in sync across desktop, tablet, and phone.
+    const measure = (): void => {
+      const computed = Number.parseFloat(window.getComputedStyle(node).getPropertyValue('--card-w'));
+      if (Number.isFinite(computed) && computed > 0) setCardWidth(computed);
+    };
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (entry) setWidth(entry.contentRect.width);
+      measure();
     });
     observer.observe(node);
     setWidth(node.clientWidth);
+    measure();
     return () => observer.disconnect();
   }, []);
 
   const hand = you?.hand ?? [];
   const played = you?.played ?? [];
-  const cardWidth = 152;
   const n = hand.length;
   // Base fan step from the spec, then guard the outer cards' rotated corners
   // so a six- or nine-card hand never pokes past the dock into the rail.
@@ -49,9 +72,12 @@ export function HandDock({ view, playableIids, choiceIids, selectedIid, onPlay, 
   const center = width / 2;
   const counts = new Map<string, number>();
   for (const card of hand) counts.set(card.defId, (counts.get(card.defId) ?? 0) + 1);
+  // A phone is too narrow for a readable fan: use the scrolling row so no
+  // card hides under its neighbour or runs past the dock.
+  const showSpread = spread || phone;
 
   return (
-    <section className={`hand-dock${spread ? ' is-spread' : ''}`} ref={dock} aria-label="Your hand">
+    <section className={`hand-dock${showSpread ? ' is-spread' : ''}`} ref={dock} aria-label="Your hand">
       <div className="play-area" aria-label="Cards played this turn">
         {played.map((card) => {
           const def = cardDef(card);
@@ -77,7 +103,7 @@ export function HandDock({ view, playableIids, choiceIids, selectedIid, onPlay, 
       </div>
 
       <button type="button" className="spread-toggle" onClick={() => setSpread((value) => !value)} aria-pressed={spread} title="Toggle a scrolling row instead of the fan">
-        {spread ? 'Fan' : 'Spread'}
+        {showSpread ? 'Fan' : 'Spread'}
       </button>
 
       <div className="hand-fan" role="list">
@@ -88,13 +114,13 @@ export function HandDock({ view, playableIids, choiceIids, selectedIid, onPlay, 
           const offset = i - (n - 1) / 2;
           const rotation = Math.max(-10, Math.min(10, offset * 3.5));
           const lift = Math.pow(Math.abs(offset), 1.4) * 5;
-          const left = spread ? undefined : center + offset * step - cardWidth / 2;
+          const left = showSpread ? undefined : center + offset * step - cardWidth / 2;
           return (
             <div
               key={card.iid}
               className="card-position"
               role="listitem"
-              style={spread ? undefined : {
+              style={showSpread ? undefined : {
                 left,
                 zIndex: 10 + i,
                 transform: `rotate(${rotation}deg)`,

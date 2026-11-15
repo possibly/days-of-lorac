@@ -604,16 +604,22 @@ export function GameScreen({
         <span className="header-wordmark">Days of Lorac</span>
         <span className="turn-chip">
           <span className="turn-dot" style={{ background: view.players[view.currentSeat] ? 'var(--gold-300)' : 'var(--ink-500)' }} aria-hidden="true" />
-          {turnChip}
+          <span className="hide-phone">{turnChip}</span>
+          <span className="only-phone">T{view.turn} · {view.legal.isTurn ? 'you' : (view.players[view.currentSeat]?.name ?? '…')}</span>
         </span>
-        <span className="target-chip" title="Victory target for this table">Race to {view.targetVp}</span>
+        <span className="target-chip" title="Victory target for this table">
+          <span className="hide-phone">Race to {view.targetVp}</span>
+          <span className="only-phone">to {view.targetVp}</span>
+        </span>
         {roomCode ? <span className="room-chip mono" title="Room code">Room {roomCode}</span> : null}
         <div className="header-actions">
           <button type="button" className="header-btn" onClick={onToggleLetters} aria-pressed={letters} title="Show W/B/S/H/O letters under resource icons">
-            {letters ? 'Letters on' : 'Letters off'}
+            <span className="hide-phone">{letters ? 'Letters on' : 'Letters off'}</span>
+            <span className="only-phone">Aa</span>
           </button>
           <button type="button" className="header-btn" onClick={onToggleSound} aria-pressed={soundOn} title="Toggle sound cues">
-            {soundOn ? 'Sound on' : 'Sound off'}
+            <span className="hide-phone">{soundOn ? 'Sound on' : 'Sound off'}</span>
+            <span className="only-phone">{soundOn ? 'Snd' : 'Mute'}</span>
           </button>
           <button type="button" className="header-btn" onClick={onRules} title="Rules (?)">Rules</button>
           <button type="button" className="header-btn header-leave" onClick={onLeave} title="Leave the table">Leave</button>

@@ -11,6 +11,12 @@ body,
   height: 100%;
 }
 
+html {
+  /* iOS Safari: keep text at its designed size, and never bounce the page. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
   font-family: var(--sans);
@@ -23,6 +29,15 @@ body {
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
+  overscroll-behavior: none;
+}
+
+/* Taps should act, not start a double-tap zoom. */
+button,
+a,
+[role="button"],
+.board-svg .target {
+  touch-action: manipulation;
 }
 
 body::before {
@@ -408,4 +423,11 @@ input {
   .step-btn { width: 36px; height: 36px; }
   .rail-tab { min-height: 44px; }
   .target-list-item { min-height: 40px; }
+}
+
+/* Narrow screens swap long labels for short ones. */
+.only-phone { display: none; }
+@media (max-width: 640px) {
+  .hide-phone { display: none; }
+  .only-phone { display: inline; }
 }

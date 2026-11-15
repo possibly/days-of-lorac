@@ -1,6 +1,8 @@
 /* Hand dock: parchment shelf, fanned ledger cards, play area strip. */
 
 .hand-dock {
+  --card-w: 152px;
+  --card-h: 196px;
   position: relative;
   min-height: 0;
   border: 1px solid var(--brass);
@@ -123,8 +125,8 @@
 .card-position {
   position: absolute;
   bottom: calc(2px + var(--lift, 0px));
-  width: 152px;
-  height: 196px;
+  width: var(--card-w);
+  height: var(--card-h);
   transform-origin: 50% 100%;
   transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
@@ -333,9 +335,8 @@
 }
 
 @media (max-width: 1180px) {
-  .hand-dock { padding: 34px 6px 6px; }
+  .hand-dock { padding: 34px 6px 6px; --card-w: 132px; --card-h: 152px; }
   .hand-fan { inset: 34px 6px 6px; }
-  .card-position { width: 132px; height: 152px; }
   .card-name { font-size: 12px; }
   .card-text { font-size: 10.5px; -webkit-line-clamp: 3; min-height: 38px; }
   .card-flavor { display: none; }
@@ -351,4 +352,48 @@
   font-weight: 700;
   color: var(--ink-700);
   letter-spacing: 0.02em;
+}
+
+/* Phone: smaller cards so a five-card fan fits inside the dock. */
+@media (max-width: 640px) {
+  .hand-dock {
+    --card-w: 110px;
+    --card-h: 126px;
+    padding: 30px 5px max(5px, env(safe-area-inset-bottom));
+  }
+  .hand-fan { inset: 30px 5px 5px; }
+  .card-face { padding: 5px 6px; gap: 2px; border-radius: 5px; }
+  .card-name { font-size: 10.5px; }
+  .card-head { min-height: 14px; }
+  .cost-pip { font-size: 9px; }
+  .card-plate { height: 28px; }
+  .card-plate svg { width: 28px; height: 28px; }
+  .card-text { font-size: 9px; line-height: 1.22; -webkit-line-clamp: 3; min-height: 26px; }
+  .card-foot { font-size: 7.5px; }
+  .card-tag { font-size: 7.5px; letter-spacing: 0.08em; }
+  .choice-badge { width: 13px; height: 13px; font-size: 9px; }
+  .vp-seal.card-seal { width: 16px; height: 16px; font-size: 9px; }
+  .dup-disc { font-size: 8px; }
+  .play-area { top: 4px; left: 6px; right: 74px; height: 24px; }
+  .play-stub { height: 20px; width: 70px; font-size: 8px; }
+  .hand-counters { top: 6px; right: 8px; font-size: 8px; gap: 6px; }
+  .spread-toggle { display: none; }
+}
+
+/* Phone landscape: the dock is a short strip, so cards shrink and the play
+   area and counters step aside. These rules live after the tablet block so
+   they win at 844x390, where both breakpoints match. */
+@media (max-height: 520px) and (max-width: 1180px) {
+  .hand-dock { --card-w: 92px; --card-h: 104px; padding: 5px 5px 4px; }
+  .hand-fan { inset: 5px 5px 4px; }
+  .play-area, .hand-counters { display: none; }
+  .card-face { padding: 4px 5px; gap: 1px; }
+  .card-plane, .card-name { font-size: 10px; }
+  .card-plate { height: 24px; }
+  .card-plate svg { width: 24px; height: 24px; }
+  .card-text { font-size: 8.5px; line-height: 1.2; -webkit-line-clamp: 2; min-height: 20px; }
+  .card-foot { display: none; }
+  .card-flavor { display: none; }
+  /* No play-area strip and no toggle in landscape. */
+  .spread-toggle { display: none; }
 }

@@ -726,3 +726,35 @@ Build order, playable loop first:
   no input.
 - No particles, parallax, blurred glass, or pill buttons.
 - No client-side rules inference. If `legal` does not say it, no button exists.
+
+---
+
+## 14. Phone (added after the first device test)
+
+The desktop and tablet layouts above still hold. Phones get one extra
+breakpoint at `max-width: 640px`, plus a short-viewport guard at
+`max-height: 520px` for landscape.
+
+- The center column must declare `grid-template-columns: minmax(0, 1fr)`.
+  Without it the seat ribbon's max-content width widens the grid and pushes
+  the board off the right edge, which is exactly what happened on iOS Safari
+  before this fix.
+- Header swaps long labels for `T3 · you`, `to 14`, `Aa`, `Snd`, `Rules`,
+  `Leave`. Room code is hidden; it stays in the lobby and share link.
+- Seat ribbon becomes a horizontal scroll row of 148px chips. Four chips do
+  not fit on a 320 to 430px screen, and that is fine.
+- Hand becomes a scrolling row of 110x126 cards. The fan needs more width than
+  a phone has, and clipped cards were worse than a row. The spread toggle is
+  hidden on phones because the row is always on. Card faces keep the name,
+  cost, hex plate, rules text, and tag; flavor is hidden.
+- Board frame keeps the full island. At 390px the SVG is 368x490; at 320px it
+  is 298 wide. No horizontal scrolling anywhere.
+- Short landscape hides the seat ribbon and the play-area strip, shrinks the
+  hand to 92x104 cards, and gives the board whatever height remains. It is
+  playable, not pretty. Portrait is the supported phone orientation.
+- `100dvh`, `viewport-fit=cover`, safe-area padding on the header and hand
+  dock, `touch-action: manipulation` on controls, `overscroll-behavior: none`.
+
+Measured after the fix: 320x568, 360x800, 375x667, 390x844, 430x932 all report
+`document.scrollWidth === window.innerWidth` and a board that ends inside the
+viewport.

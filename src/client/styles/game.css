@@ -2,6 +2,7 @@
 
 .game-screen {
   height: 100%;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -13,7 +14,9 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 0 12px;
+  /* Keep the seal clear of a landscape notch when viewport-fit=cover. */
+  padding-left: max(12px, env(safe-area-inset-left));
+  padding-right: max(12px, env(safe-area-inset-right));
   background: linear-gradient(180deg, rgba(20, 48, 38, 0.98), rgba(15, 36, 29, 0.98));
   border-bottom: 1px solid var(--brass);
   box-shadow: 0 1px 0 rgba(232, 207, 152, 0.12) inset;
@@ -181,12 +184,16 @@
   min-width: 0;
   min-height: 0;
   display: grid;
+  /* An explicit minmax(0, 1fr) column stops the grid from widening to the
+     seat ribbon's max-content width and pushing the board off a phone. */
+  grid-template-columns: minmax(0, 1fr);
   /* Board first: the hand row and the action bar are trimmed to give it
      height, because the board is height-bound and width-rich. */
   grid-template-rows: minmax(0, 1fr) 56px 244px;
   gap: 10px;
   position: relative;
 }
+.center-column > * { min-width: 0; }
 .center-column > .seat-ribbon-wrap { display: none; }
 
 /* ---------- board frame chrome ---------- */
@@ -687,4 +694,68 @@
 @media (max-height: 780px) and (min-width: 1181px) {
   .center-column { grid-template-rows: minmax(0, 1fr) 54px 208px; }
   .toasts { bottom: 224px; }
+}
+
+/* ---------- phone ---------- */
+
+@media (max-width: 640px) {
+  .game-header { height: 46px; gap: 5px; padding: 0 7px; }
+  .home-seal svg { width: 26px; height: 26px; }
+  .turn-chip { font-size: 10.5px; padding: 3px 7px; gap: 5px; }
+  .turn-dot { width: 5px; height: 5px; }
+  .target-chip { font-size: 10px; padding: 3px 6px; letter-spacing: 0.03em; }
+  .header-actions { gap: 1px; }
+  .header-btn { font-size: 10px; padding: 3px 5px; min-height: 28px; }
+  .game-body { padding: 6px; gap: 6px; }
+  .center-column {
+    grid-template-rows: 54px minmax(0, 1fr) 50px 164px;
+    gap: 6px;
+  }
+  .seat-ribbon { gap: 4px; }
+  .seat-chip { min-width: 148px; min-height: 44px; padding: 3px 6px; }
+  .seat-chip-name { font-size: 10.5px; }
+  .seat-chip-vp { font-size: 11px; }
+  .mini-res { font-size: 8.5px; gap: 0; }
+  .mini-res .res-icon { width: 9px; height: 9px; }
+  .board-mat { inset: 4px; }
+  .board-svg { inset: 4px; width: calc(100% - 8px); height: calc(100% - 8px); }
+  .dice-tray { width: 64px; height: 32px; top: 6px; left: 6px; gap: 3px; }
+  .die { width: 15px; height: 15px; }
+  .dice-total { font-size: 11px; min-width: 14px; }
+  .board-talk { font-size: 9px; max-width: 46%; padding: 3px 5px; top: 6px; right: 6px; }
+  .action-bar { min-height: 50px; padding: 4px 8px; gap: 6px; }
+  .prompt-line { font-size: 11.5px; }
+  .action-buttons { gap: 4px; }
+  .action-buttons .btn { font-size: 11px; padding: 4px 7px; min-height: 32px; }
+  .supply-rail { width: 100vw; max-width: 100vw; top: 46px; }
+  .toasts { bottom: 176px; }
+  .board-a11y { left: 6px; bottom: 4px; }
+  .board-a11y > .btn { font-size: 9px; padding: 2px 5px; }
+  .reconnect-banner, .pilot-strip { font-size: 10px; }
+}
+
+/* ---------- phone landscape (short viewport) ---------- */
+
+@media (max-height: 520px) and (max-width: 1180px) {
+  .game-header { height: 40px; }
+  .game-body { padding: 6px; gap: 6px; }
+  .center-column {
+    grid-template-rows: minmax(0, 1fr) 42px 116px;
+    gap: 6px;
+  }
+  /* Four seat chips do not fit in 390px of height; the header and action bar
+     already name the active player, so the board gets the space instead. */
+  .center-column > .seat-ribbon-wrap { display: none; }
+  .action-bar { min-height: 42px; padding: 3px 8px; }
+  .prompt-line { font-size: 11px; }
+  .action-buttons .btn { font-size: 10.5px; padding: 3px 7px; min-height: 28px; }
+  .hand-dock { --card-w: 92px; --card-h: 104px; padding: 5px 5px 4px; }
+  .hand-fan { inset: 5px 5px 4px; }
+  .card-plate { height: 24px; }
+  .card-plate svg { width: 24px; height: 24px; }
+  .card-text { -webkit-line-clamp: 2; min-height: 22px; }
+  .card-foot { display: none; }
+  /* No room for a play-area strip above the cards in landscape. */
+  .play-area, .hand-counters { display: none; }
+  .toasts { bottom: 130px; }
 }
