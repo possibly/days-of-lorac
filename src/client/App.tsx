@@ -141,6 +141,7 @@ export default function App(): JSX.Element {
   useEffect(() => {
     if (fixtureMode) return;
     if (snapshot.mismatch) return;
+    if (snapshot.hostSeat !== null) hostSeat.current = snapshot.hostSeat;
     if (snapshot.game) {
       if (screenRef.current !== 'game') setScreen('game');
       lastCode.current = snapshot.roomCode;
@@ -155,7 +156,7 @@ export default function App(): JSX.Element {
       setRoomParam(snapshot.lobby.code);
       setLastSession(loadResumable());
     }
-  }, [snapshot.game, snapshot.lobby, snapshot.mismatch, fixtureMode]);
+  }, [snapshot.game, snapshot.lobby, snapshot.hostSeat, snapshot.mismatch, fixtureMode]);
 
   // ----- errors ------------------------------------------------------------
   useEffect(() => {
@@ -245,7 +246,8 @@ export default function App(): JSX.Element {
 
   const currentView = fixtureMode ? fixtureView : snapshot.game;
   const you = currentView?.you ?? snapshot.you ?? 0;
-  const isHost = fixtureMode ? true : hostSeat.current !== null ? hostSeat.current === you : lastCode.current === null ? true : null;
+  const seatHost = fixtureMode ? true : snapshot.hostSeat !== null ? snapshot.hostSeat === you : hostSeat.current !== null ? hostSeat.current === you : lastCode.current === null ? true : null;
+  const isHost = seatHost;
 
   // ----- render ------------------------------------------------------------
   let body: JSX.Element;
@@ -258,6 +260,9 @@ export default function App(): JSX.Element {
         connected={fixtureMode ? true : snapshot.link === 'open'}
         link={snapshot.link}
         botPilot={fixtureMode ? false : snapshot.botPilot}
+        pilotSeats={fixtureMode ? [] : snapshot.pilotSeats}
+        chats={fixtureMode ? [] : snapshot.chats}
+        onChat={(text) => (fixtureMode ? undefined : client.chat(text))}
         roomCode={fixtureMode ? 'TEST' : snapshot.roomCode}
         soundOn={soundOn}
         letters={letters}

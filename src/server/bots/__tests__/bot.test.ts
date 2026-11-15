@@ -28,6 +28,7 @@ import type {
   Seat,
   VertexId,
 } from '../../../shared/types.js';
+import { CARD_BY_ID } from '../../../shared/cards.js';
 import { chooseProvisionerResources, choosePurchase } from '../cards.js';
 import { chooseDiscard } from '../discard.js';
 import { chooseBotAction, isLegalAction } from '../index.js';
@@ -68,6 +69,27 @@ function plainResources(): ResourceMap {
 
 function fullResources(set: PartialResources): ResourceMap {
   return { ...plainResources(), ...set };
+}
+
+/**
+ * A charter mix worth exactly `need` VP, capped at the printed copy counts.
+ * Bot tests that want a player one purchase from winning ask for
+ * `targetVp - 2 - boardVp` instead of hardcoding copies, so a retarget or a
+ * copy-count change does not silently turn the test into a different scenario.
+ */
+function chartersWorthVp(need: number): Record<string, number> {
+  const fleet = CARD_BY_ID.get('fleet-charter')?.vp ?? 2;
+  const quay = CARD_BY_ID.get('quay-deed')?.vp ?? 1;
+  const fleets = Math.max(0, Math.min(4, Math.floor(need / fleet)));
+  const quays = Math.max(0, Math.round((need - fleets * fleet) / quay));
+  return { 'fleet-charter': fleets, 'quay-deed': quays };
+}
+
+/** VP that comes from buildings, ignoring charters and awards. */
+function boardVp(state: GameState, seat: Seat): number {
+  const breakdown = state.players[seat]?.vpBreakdown;
+  if (!breakdown) return 0;
+  return breakdown.settlements + breakdown.cities;
 }
 
 // ---------------------------------------------------------------------------
@@ -397,7 +419,11 @@ describe('bot policy: trades', () => {
     const state = patch(base, (draft) => {
       draft.phase = 'action';
       draft.currentSeat = 1;
-      draft.players[1]!.charters = { 'fleet-charter': 4 };
+      // Seat 1 is one charter away from the target, so accepting a wood for
+      // sheep trade would hand it the win.
+      draft.players[1]!.charters = chartersWorthVp(
+        draft.config.targetVp - 2 - boardVp(draft, 1),
+      );
       draft.players[0]!.resources = { wood: 1, brick: 1, sheep: 4, wheat: 1, ore: 1 };
       draft.tradeOffer = {
         id: 'offer-leader',
@@ -446,7 +472,10 @@ describe('bot policy: purchases', () => {
       draft.phase = 'action';
       draft.currentSeat = 0;
       draft.turn = 9;
-      draft.players[0]!.charters = { 'quay-deed': 6, 'fleet-charter': 1 };
+      // One fleet charter short of the target: buying it wins on the spot.
+      draft.players[0]!.charters = chartersWorthVp(
+        draft.config.targetVp - (CARD_BY_ID.get('fleet-charter')?.vp ?? 2) - boardVp(draft, 0),
+      );
       draft.players[0]!.resources = { wood: 3, brick: 3, sheep: 1, wheat: 3, ore: 3 };
       // Cards are free to play and go first, so empty the hand to get straight
       // to the closing purchase.
@@ -520,7 +549,8 @@ describe('bot policy: difficulty', () => {
     let differing = 0;
     for (let seed = 0; seed < 20; seed += 1) {
       const first = createGame({ playerCount: 4, seed: 2000 + seed });
-      const view = viewFor(first, 0);
+      // The seeded first seat can be a bot, so view for whoever picks first.
+      const view = viewFor(first, first.currentSeat);
       const index = boardIndex(first.board);
       const pipsOf = (vertex: string): number => {
         let total = 0;

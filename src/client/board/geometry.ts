@@ -32,7 +32,7 @@ export function hexPath(cx: number, cy: number, s: number): string {
     .concat(' Z');
 }
 
-/** Union of every vertex and port tag, padded 0.75S, rounded to integers. */
+/** Union of every vertex and port tag, padded a hair, rounded to 2 decimals. */
 function computeViewBox(board: Board, s: number): string {
   let minX = Infinity;
   let minY = Infinity;
@@ -44,18 +44,21 @@ function computeViewBox(board: Board, s: number): string {
     maxX = Math.max(maxX, vertex.x);
     maxY = Math.max(maxY, vertex.y);
   }
+  // The port tag is 1.02S by 0.42S, centred on the port anchor.
   for (const port of board.ports) {
-    minX = Math.min(minX, port.x - 0.43 * s);
-    maxX = Math.max(maxX, port.x + 0.43 * s);
-    minY = Math.min(minY, port.y - 0.15 * s);
-    maxY = Math.max(maxY, port.y + 0.15 * s);
+    minX = Math.min(minX, port.x - 0.51 * s);
+    maxX = Math.max(maxX, port.x + 0.51 * s);
+    minY = Math.min(minY, port.y - 0.21 * s);
+    maxY = Math.max(maxY, port.y + 0.21 * s);
   }
   if (!Number.isFinite(minX) || !Number.isFinite(minY)) return '0 0 10 10';
-  const pad = 0.75 * s;
-  const x = Math.floor(minX - pad);
-  const y = Math.floor(minY - pad);
-  const w = Math.ceil(maxX + pad) - x;
-  const h = Math.ceil(maxY + pad) - y;
+  // 0.75S of air around a 10S island wasted a fifth of the frame. A quarter of
+  // that still keeps port tags and building corners off the mat edge.
+  const pad = 0.28 * s;
+  const x = Math.floor((minX - pad) * 100) / 100;
+  const y = Math.floor((minY - pad) * 100) / 100;
+  const w = Math.ceil((maxX + pad) * 100) / 100 - x;
+  const h = Math.ceil((maxY + pad) * 100) / 100 - y;
   return `${x} ${y} ${w} ${h}`;
 }
 

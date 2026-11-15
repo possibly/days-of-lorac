@@ -32,7 +32,7 @@ any screen --> Rules sheet, closes back where it opened
 | Screen | Content | Primary button |
 | --- | --- | --- |
 | Title | wordmark, seal, tagline, three buttons, footer version and socket dot | "Play vs bots" |
-| Solo setup | name, seats 2/3/4, difficulty, "Race to 16/14/12" note | "Start game" |
+| Solo setup | name, seats 2/3/4, difficulty, "Race to 18/16/14" note | "Start game" |
 | Create room | name, max players 2/3/4, fill difficulty | "Create room" |
 | Join | name, 4-letter code in caps, locked when it came from a URL | "Join room" |
 | Lobby | code chip, seat grid, ready toggles, host controls, invite link | "Start game" |
@@ -75,17 +75,17 @@ takes 62% of the area and its frame is the brightest surface on screen.
 
 ```
 +------------------------------------------------------------------------------+
-| Days of Lorac   Turn 7, your move     Race to 12   Sound Rules  Leave        |
+| Days of Lorac   Turn 7, your move     Race to 14   Sound Rules  Leave        |
 +-----------+-----------------------------------------------+------------------+
 | LEDGER    | +-------------------------------------------+ | MARKET 1 buy/turn|
 |           | | [dice]                 [log line]         | | +--------------+ |
 | +-------+ | |                                           | | | Fleet     x3 | |
 | | YOU 7 | | |            o o o                          | | +--------------+ |
-| | /12   | | |          o o o o                          | | +--------------+ |
+| | /14   | | |          o o o o                          | | +--------------+ |
 | +-------+ | |        o o o o o    BOARD SVG             | | | Quay      x8 | |
 | +-------+ | |          o o o o      [ports]             | | +--------------+ |
 | | Maren | | |            o o o                          | | | Salvage   7  | |
-| | 5/12  | | |                                           | | | WWW wood Buy | |
+| | 5/14  | | |                                           | | | WWW wood Buy | |
 | +-------+ | +-------------------------------------------+ | | Rope      6  | |
 | +-------+ | +-------------------------------------------+ | | WWW wood Buy | |
 | | Kell  | | | No affordable build or purchase.          | | | Foundry   6  | |
@@ -110,7 +110,7 @@ takes 62% of the area and its frame is the brightest surface on screen.
 Collapses on tablet, in order:
 
 1. Ledger becomes a ribbon of four 236x64 chips under the header, keeping seat
-   coin, name, `7/12`, the five resource counts, and one badge slot. Tap
+   coin, name, `7/14`, the five resource counts, and one badge slot. Tap
    expands the full panel over the rail slot, tap again closes.
 2. Right rail becomes a drawer over the board with a 42% ink scrim, opened by
    "Buy card", the market tab, or the trade tab. Closed by scrim, Esc, or the
@@ -439,7 +439,7 @@ marked, not moved.
 
 ```
 +--------------------------------+
-|(1) YOU         7/12 [####---]  |
+|(1) YOU         7/14 [####---]  |
 |2 settlements  1 city           |
 |1 charter      route +2         |
 |W2 B1 S0 H3 O1                  |
@@ -453,8 +453,8 @@ marked, not moved.
 2. Name, sans 13px 600, clamped to 12 characters, full name in tooltip.
 3. Badges, 16px caps: `BOT` in sea-300, `OFFLINE` in error with a dashed
    border, `BOT PILOT` in p3 dashed, `HOST` in gold-400, lobby only.
-4. VP `7/12` at 20px 700 plus a 12-segment meter, filled in `--pN`, the target
-   segment in gold-300, empty at ink-500 30%. Tooltip "7 of 12 victory points."
+4. VP `7/14` at 20px 700 plus a target-segment meter (14 with four players), filled in `--pN`, the target
+   segment in gold-300, empty at ink-500 30%. Tooltip "7 of 14 victory points."
 5. Breakdown chips, nonzero only, read from `vpBreakdown`: "2 settlements",
    "1 city", "2 charters", "route +2", "expedition +2". Chip tooltip lists all
    five sources with point values. Never recompute VP.
@@ -473,7 +473,7 @@ hairline, a 14% warm wash, and a corner pennant. Others drop to 90%. The header
 also names the active player, so turn state is never color-only.
 
 Target VP lives in three places, all from `view.targetVp`: the header chip
-"Race to 12", each panel's `7/12`, and the game over sheet. Never hardcode.
+"Race to 14", each panel's `6/14`, and the game over sheet. Never hardcode.
 
 ---
 
@@ -504,7 +504,7 @@ more than three buttons.
 | action, waiting | "Waiting on Kell to end their turn." | none |
 | incoming offer | "Kell offers 2 Wood for 1 Ore." | "Accept" "Decline" |
 | offer open | "Offer open. Waiting on 2 players." | "Cancel offer" |
-| game over | "Maren wins at 12 points." | "See the result" |
+| game over | "Maren wins at 14 points." | "See the result" |
 
 The empty state fires exactly when `legal.playable` is empty, `legal.buyable` is
 empty, all three `build.affordable` flags are false, and `bankTrades` is empty.
@@ -566,7 +566,7 @@ to all" and "Cancel". An open offer replaces the grids with its summary and
 Log tab: mono 11px lines from `view.log`, newest first, capped at 40, a seat dot
 per entry, and filter chips All / Builds / Cards / Rolls.
 
-Game over sheet: seal, "Maren wins at 12 points", then a table with Place, Name,
+Game over sheet: seal, "Maren wins at 14 points", then a table with Place, Name,
 VP, Settlements, Cities, Charters, Route, Expedition, non-winners struck. Below
 it a three-line digest from `view.log` filtered to `buy`, `award`, `win`. Hosts
 get "Play again" and "Change setup", guests get "Waiting for the host".

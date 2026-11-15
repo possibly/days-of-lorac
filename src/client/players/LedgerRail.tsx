@@ -11,7 +11,8 @@ interface LedgerRailProps {
   onPlayInspected: () => void;
   onCloseInspector: () => void;
   letters: boolean;
-  botPilot: boolean;
+  /** Seats a bot is flying right now, straight from the socket snapshot. */
+  pilotSeats: number[];
 }
 
 export function LedgerRail({
@@ -22,7 +23,7 @@ export function LedgerRail({
   onPlayInspected,
   onCloseInspector,
   letters,
-  botPilot,
+  pilotSeats,
 }: LedgerRailProps): JSX.Element {
   return (
     <aside className="ledger-rail" aria-label="Player ledger">
@@ -44,7 +45,7 @@ export function LedgerRail({
             player={player}
             isCurrent={player.seat === view.currentSeat}
             isYou={player.seat === view.you}
-            botPilot={botPilot}
+            isPilot={pilotSeats.includes(player.seat)}
             letters={letters}
           />
         ))}
@@ -57,13 +58,13 @@ export function LedgerRail({
 /** Tablet ribbon: four chips, tap to expand the full panel over the board. */
 export function SeatRibbon({
   view,
-  botPilot,
+  pilotSeats,
   expanded,
   onExpand,
   letters,
 }: {
   view: GameView;
-  botPilot: boolean;
+  pilotSeats: number[];
   expanded: number | null;
   onExpand: (seat: number | null) => void;
   letters: boolean;
@@ -79,7 +80,7 @@ export function SeatRibbon({
             player={entry}
             isCurrent={entry.seat === view.currentSeat}
             isYou={entry.seat === view.you}
-            botPilot={botPilot}
+            isPilot={pilotSeats.includes(entry.seat)}
             compact
             letters={letters}
             onExpand={() => onExpand(expanded === entry.seat ? null : entry.seat)}
@@ -93,7 +94,7 @@ export function SeatRibbon({
             player={player}
             isCurrent={player.seat === view.currentSeat}
             isYou={player.seat === view.you}
-            botPilot={botPilot}
+            isPilot={pilotSeats.includes(player.seat)}
             letters={letters}
           />
           <button type="button" className="btn btn-ghost btn-small" onClick={() => onExpand(null)}>Close</button>

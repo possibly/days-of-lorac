@@ -4,6 +4,8 @@ import type { ChatMessage } from '@shared/protocol';
 import type { BotDifficulty, Seat } from '@shared/types';
 import { Button } from '../ui/Button';
 import { SeatCoin } from '../ui/SeatCoin';
+import { copyText } from '../ui/clipboard';
+import type { CopyResult } from '../ui/clipboard';
 
 interface LobbyScreenProps {
   lobby: LobbyView;
@@ -32,28 +34,41 @@ export function LobbyScreen({
   onChat,
   onRules,
 }: LobbyScreenProps): JSX.Element {
-  const [copied, setCopied] = useState(false);
+  const [copyState, setCopyState] = useState<CopyResult | null>(null);
   const [text, setText] = useState('');
+  const link = useRef<HTMLInputElement>(null);
   const me = lobby.players.find((player) => player.seat === you);
   const isHost = lobby.hostSeat === you;
   const openSeats = Math.max(0, lobby.config.maxPlayers - lobby.players.length);
-  const allReady = lobby.players.filter((player) => !player.isBot).every((player) => player.ready);
+  // The host's ready flag is implicit: the host opens the table, so only the
+  // guests have to say they are in. Two filled seats is still the floor.
+  const guests = lobby.players.filter((player) => !player.isBot && player.seat !== lobby.hostSeat);
+  const allGuestsReady = guests.every((player) => player.ready);
   const invite = typeof window === 'undefined' ? '' : `${window.location.origin}${window.location.pathname}?room=${lobby.code}`;
 
   useEffect(() => {
-    if (!copied) return undefined;
-    const timer = window.setTimeout(() => setCopied(false), 2000);
+    if (!copyState) return undefined;
+    const timer = window.setTimeout(() => setCopyState(null), 3200);
     return () => window.clearTimeout(timer);
-  }, [copied]);
+  }, [copyState]);
 
   const copy = async (): Promise<void> => {
-    try {
-      await navigator.clipboard.writeText(invite);
-    } catch {
-      // Clipboard can fail without permission; the field below is selectable.
-    }
-    setCopied(true);
+    setCopyState(await copyText(invite));
   };
+
+  const selectInvite = (): void => {
+    link.current?.focus();
+    link.current?.select();
+    link.current?.setSelectionRange(0, invite.length);
+  };
+
+  const copyLine = copyState === 'copied'
+    ? 'Invite link copied.'
+    : copyState === 'manual'
+      ? 'Clipboard blocked. Select the invite link below and copy it by hand.'
+      : copyState === 'failed'
+        ? 'Could not copy. The invite link above is selectable.'
+        : null;
 
   return (
     <main className="lobby-screen">
@@ -64,11 +79,14 @@ export function LobbyScreen({
           <p className="lobby-sub">Race to {lobby.targetVp} · {lobby.config.maxPlayers} seats · fill difficulty {lobby.config.difficulty}</p>
         </div>
         <div className="lobby-head-actions">
-          <Button variant="secondary" onClick={copy}>{copied ? 'Invite copied' : 'Copy invite link'}</Button>
+          <Button variant="secondary" onClick={copy} title={invite}>
+            {copyState === 'copied' ? 'Invite copied' : copyState === 'manual' || copyState === 'failed' ? 'Copy failed, select it' : 'Copy invite link'}
+          </Button>
           <Button variant="ghost" onClick={onRules}>Rules</Button>
           <Button variant="ghost" onClick={onLeave}>Leave</Button>
         </div>
       </header>
+      {copyLine ? <p className={`copy-note is-${copyState}`} role="status">{copyLine}</p> : null}
 
       <div className="lobby-grid">
         <section className="parchment lobby-seats" aria-label="Seats">
@@ -115,11 +133,26 @@ export function LobbyScreen({
           </div>
 
           <div className="lobby-controls">
-            <Button variant={me?.ready ? 'secondary' : 'primary'} onClick={() => onReady(!me?.ready)} disabled={!connected} reason={!connected ? 'Reconnecting to the server.' : null}>
-              {me?.ready ? 'Not ready' : 'Ready'}
-            </Button>
             {isHost ? (
-              <Button variant="primary" onClick={onStart} disabled={!connected || lobby.players.length < 2 || !allReady} reason={!connected ? 'Reconnecting to the server.' : lobby.players.length < 2 ? 'Seat at least two players.' : !allReady ? 'Everyone has to be ready.' : null}>
+              <span className="host-note" title="The host does not ready up. Guests do.">Host · you start the game</span>
+            ) : (
+              <Button variant={me?.ready ? 'secondary' : 'primary'} onClick={() => onReady(!me?.ready)} disabled={!connected} reason={!connected ? 'Reconnecting to the server.' : null}>
+                {me?.ready ? 'Not ready' : 'Ready'}
+              </Button>
+            )}
+            {isHost ? (
+              <Button
+                variant="primary"
+                onClick={onStart}
+                disabled={!connected || lobby.players.length < 2 || !allGuestsReady}
+                reason={!connected
+                  ? 'Reconnecting to the server.'
+                  : lobby.players.length < 2
+                    ? 'Seat at least two players.'
+                    : !allGuestsReady
+                      ? 'Every guest has to be ready.'
+                      : null}
+              >
                 Start game
               </Button>
             ) : (
@@ -130,7 +163,16 @@ export function LobbyScreen({
 
           <label className="invite-field">
             <span>Invite link</span>
-            <input readOnly value={invite} onFocus={(event) => event.target.select()} />
+            <input
+              ref={link}
+              readOnly
+              value={invite}
+              className="invite-link"
+              onFocus={(event) => event.target.select()}
+              onPointerUp={selectInvite}
+              aria-describedby="invite-hint"
+            />
+            <span id="invite-hint" className="invite-hint">Open the link on any device on the same network. It resumes your seat here.</span>
           </label>
         </section>
 

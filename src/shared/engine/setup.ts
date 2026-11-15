@@ -10,10 +10,11 @@ import type { EngineFailure } from './state.js';
 import type { EdgeId, GameState, Seat, VertexId } from '../types.js';
 
 export function finishSetup(draft: GameState): void {
+  const firstSeat = draft.setup?.order[0] ?? draft.firstSeat;
   draft.setup = null;
   draft.phase = 'roll';
   draft.turn = 1;
-  draft.currentSeat = 0;
+  draft.currentSeat = firstSeat;
   draft.dice = null;
   draft.turnFlags = { rolled: false, purchased: false };
   draft.discardQueue = [];
@@ -24,9 +25,9 @@ export function finishSetup(draft: GameState): void {
       if (drawCards(draft, player, 1) === 0) break;
     }
   }
-  addLog(draft, 'turn', `Turn 1: ${playerName(draft, 0)} to play.`, 0, {
+  addLog(draft, 'turn', `Turn 1: ${playerName(draft, firstSeat)} to play.`, firstSeat, {
     turn: 1,
-    seat: 0,
+    seat: firstSeat,
   });
 }
 

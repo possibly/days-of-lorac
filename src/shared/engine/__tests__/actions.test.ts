@@ -36,13 +36,15 @@ describe('actions: core invariants', () => {
   it('is deterministic: same seed and actions produce a deep-equal state', () => {
     const run = (seed: number): string => {
       let state = finishSetup(newGame(4, seed));
-      state = act(setNextRoll(state, 6), 0, { type: 'roll' });
-      state = act(state, 0, { type: 'endTurn' });
-      state = setResources(state, 1, { wood: 5, brick: 5 });
-      state = act(setNextRoll(state, 9), 1, { type: 'roll' });
-      const edge = legalMoves(state, 1).build.roads[0];
-      if (edge) state = act(state, 1, { type: 'buildRoad', edge });
-      state = act(state, 1, { type: 'endTurn' });
+      const first = state.currentSeat;
+      const second = (first + 1) % 4;
+      state = act(setNextRoll(state, 6), first, { type: 'roll' });
+      state = act(state, first, { type: 'endTurn' });
+      state = setResources(state, second, { wood: 5, brick: 5 });
+      state = act(setNextRoll(state, 9), second, { type: 'roll' });
+      const edge = legalMoves(state, second).build.roads[0];
+      if (edge) state = act(state, second, { type: 'buildRoad', edge });
+      state = act(state, second, { type: 'endTurn' });
       return snapshot(state);
     };
 
@@ -51,7 +53,8 @@ describe('actions: core invariants', () => {
   });
 
   it('increments version once per accepted action and rejects unknown or out-of-turn actions', () => {
-    const state = setupGame(4, 12);
+    const setup = setupGame(4, 12);
+    const state = setNextRoll(setup, 8);
     const rolled = act(state, 0, { type: 'roll' });
     expect(rolled.version).toBe(state.version + 1);
 

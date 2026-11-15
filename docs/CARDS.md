@@ -5,7 +5,7 @@ card data: ids, costs, copy counts, exact player-facing text, effect
 specification, edge cases, and the bot heuristic for each card.
 
 Cross-checks (see section 7 for the arithmetic): 10 market piles, 58 pile
-cards, 2 charter stacks, 12 charter cards, 70 cards in the market, 10 cards in
+cards, 2 charter stacks, 13 charter cards, 71 cards in the market, 10 cards in
 each starting deck.
 
 ---
@@ -74,27 +74,27 @@ sometimes has 7 resources is not.
 | 6 | `wreckers-lamp` | Wrecker's Lamp | 3 Sheep | 5 |
 | 7 | `provisioner` | Provisioner | 2 Wheat | 6 |
 | 8 | `survey-voyage` | Survey Voyage | 3 Wheat | 6 |
-| 9 | `bellows-yard` | Bellows Yard | 4 Ore | 6 |
+| 9 | `bellows-yard` | Bellows Yard | 3 Ore | 6 |
 | 10 | `shipwrights-yard` | Shipwright's Yard | 4 Ore | 4 |
 | | | **Pile subtotal** | | **58** |
-| 11 | `quay-deed` | Quay Deed | 1 of each resource | 8 |
-| 12 | `fleet-charter` | Fleet Charter | 3 Ore, 3 Wheat, 2 Brick | 4 |
-| | | **Charter subtotal** | | **12** |
-| | | **Market total** | | **70** |
+| 11 | `quay-deed` | Quay Deed | 1 of each resource | 9 |
+| 12 | `fleet-charter` | Fleet Charter | 3 Ore, 3 Wheat, 3 Brick | 4 |
+| | | **Charter subtotal** | | **13** |
+| | | **Market total** | | **71** |
 
 Supply check against demand:
 
-- 4 players at the 12-VP target buy roughly 11 to 13 cards each, so 44 to 52
+- 4 players at the 14-VP target buy roughly 8 to 10 cards each, so 32 to 40
   purchases.
-- 3 players at 14 buy roughly 12 to 15 each, so 36 to 45.
-- 2 players at 16 buy roughly 14 to 17 each, so 28 to 34.
+- 3 players at 16 buy roughly 7 to 9 each, so 21 to 27.
+- 2 players at 18 buy roughly 6 to 8 each, so 12 to 16.
 
-70 cards covers a 4-player game with margin. Individual piles will empty,
+71 cards covers a 4-player game with margin. Individual piles will empty,
 which is the point. The whole market cannot.
 
-Cost total check across all 58 pile cards: 178 resource units, an average of
-3.07 per card. By resource, counting every copy: wood 39, brick 36, sheep 33,
-wheat 30, ore 40.
+Cost total check across all 58 pile cards: 172 resource units, an average of
+2.97 per card. By resource, counting every copy: wood 39, brick 36, sheep 33,
+wheat 30, ore 34.
 
 The market pulls hardest on wood and ore. Wood is the richest terrain on the
 template (14 pips), so the market soaking it up is healthy. Ore is the poorest
@@ -284,26 +284,26 @@ ore affordable, and the market exists to make you pay for it.
 
 ### 4.9 `bellows-yard`, Bellows Yard
 
-- Cost 4 Ore. Copies 6.
+- Cost 3 Ore. Copies 6.
 - Text: **Gain 2 Ore and 2 Wheat.**
 - Effect spec: `gain(ore, 2); gain(wheat, 2)`.
 - Type: economy, city fuel.
 - VP: none. Renown: none.
 - Choice UI: no.
 - Edge cases: none.
-- Bot heuristic: buy on the turn the bot reaches 4 ore and still lacks 2 wheat
+- Bot heuristic: buy on the turn the bot reaches 3 ore and still lacks 2 wheat
   for a city. Highest priority purchase for a bot with 2 or more settlements
   and fewer than 2 cities.
-- Why not an auto-buy: 4 ore is the most expensive single-resource cost in the
-  market, and ore is the scarcest terrain. Buying it means not building
-  anything this turn.
-- Why not a trap: it returns 4 resources from a 4-resource cost with the ore
-  preserved, so it turns one ore into two wheat every cycle. It is the only
-  card that makes cities cheap.
-- Watched card: this is the most likely candidate to be overpowered. It nets
-  plus one resource per appearance, which puts it at the top of the band in the
-  balance table. If simulation shows ore-pile dominance, raise it to 5 ore
-  before touching anything else.
+- Why not an auto-buy: ore is the scarcest terrain and 3 ore is still a real
+  hold. Buying it means not building anything else this turn.
+- Why not a trap: it returns 4 resources from a 3-resource cost, so it turns
+  one ore into two wheat every cycle. It is the only card that makes cities
+  cheap.
+- Watched card: after the cut from 4 ore to 3, this is the most efficient pile
+  in the market. Simulation gives about 3.7 buys per 4p game, roughly one per
+  player, which is lively rather than dominant. If it climbs past 4 buys a game
+  or wins an outsized share of games, the next step is a 3 ore, 2 wheat cost or
+  a reduced effect; do not go back to 4 ore, which sold zero copies.
 
 ### 4.10 `shipwrights-yard`, Shipwright's Yard
 
@@ -334,7 +334,7 @@ ore affordable, and the market exists to make you pay for it.
 
 ### 4.11 `quay-deed`, Quay Deed
 
-- Cost 1 of each resource (5 total). Copies 8.
+- Cost 1 of each resource (5 total). Copies 9.
 - Text: **Worth 1 Victory Point.**
 - Effect spec: `vp += 1`. Permanently owned. No play effect.
 - Type: scoring.
@@ -352,11 +352,16 @@ ore affordable, and the market exists to make you pay for it.
   space. Buying it early is a tempo loss and it clogs your draws.
 - Why not a trap: it is the only VP a fully blocked player can buy. Without it,
   a player with no legal settlement vertex would have nothing to spend on and
-  the game would stall for them.
+  the game would stall for them. The ninth copy exists for the same reason: a
+  four-player game where the board saturates at 15 cities can otherwise run
+  out of charter VP before anyone reaches the target, and the bot simulation
+  found exactly that stalemate. The extra deed is bought only in those long
+  games; the usual 4p game still sees about 3.7. See `GAME-DESIGN.md` section
+  19, risk 5.
 
 ### 4.12 `fleet-charter`, Fleet Charter
 
-- Cost 3 Ore, 3 Wheat, 2 Brick (8 total). Copies 4.
+- Cost 3 Ore, 3 Wheat, 3 Brick (9 total). Copies 4.
 - Text: **Worth 2 Victory Points.**
 - Effect spec: `vp += 2`. Permanently owned. No play effect.
 - Type: scoring, premium.
@@ -364,17 +369,19 @@ ore affordable, and the market exists to make you pay for it.
 - Choice UI: no.
 - Edge cases: same ownership rules as Quay Deed. The fixed multiset means a
   player holding only wood and sheep cannot buy one at any price, which is
-  intentional. 8 resources fit under the 9-resource hand limit, so a player can
-  legally hold the whole cost and risk a 7 to keep it.
+  intentional. 9 resources sit exactly on the 9-resource hand limit, so a
+  player can legally hold the whole cost but has no margin: one more resource
+  and a seven forces a discard. That is the intended gamble.
 - Bot heuristic: highest-priority purchase from the turn the bot can pay, if
   the bot is at target minus 5 or closer. Second priority if two copies remain
   and an opponent is at target minus 3.
-- Why not an auto-buy: 4 resources per VP is the best rate in the game, which
-  makes it look like an auto-buy, but it is 8 resources in one turn and it is a
-  dead card forever. Buying one on turn 6 costs you a city.
+- Why not an auto-buy: 4.5 resources per VP is still the best rate in the game,
+  which makes it look like an auto-buy, but it is 9 resources in one turn and
+  it is a dead card forever. Buying one on turn 6 costs you a city.
 - Why not a trap: with only 4 copies it is a contested prize, and the race for
-  the last one produces the endgame. Watch it. If more than 35% of games are
-  decided by the final Fleet Charter purchase, raise the copies to 6.
+  the last one produces the endgame. Simulation at 9 resources makes it the
+  decisive purchase in 32% of 4p games, under the 35% watch line. If that
+  climbs again, raise the cost to 10 before touching copies.
 
 ---
 
@@ -394,7 +401,7 @@ where interesting decks come from.
 
 Which plan should a new player be told to try: economy into scoring. Buy Rope
 Walk and Bellows Yard for four turns, then convert into cities and charters. It
-is the plan that most looks like a deck builder and it is the one the 12-VP
+is the plan that most looks like a deck builder and it is the one the 14-VP
 target was set to make viable.
 
 Which plan is easiest to play badly: board rush. It looks obvious, it wins the
@@ -438,18 +445,20 @@ at that point in the game, and correct in the first three turns.
 | Wrecker's Lamp | 3 | 2.5 | +0.54 | 5.6 turns | Weak on economy, strong on the award. |
 | Provisioner | 2 | 2.6 | +0.57 | 3.5 turns | In band. Cheapest card, best value for a blocked player. |
 | Survey Voyage | 3 | 4.3 | +1.18 | 2.5 turns | Above band on paper. The award cap is what reins it in: renown past 3 is worth nothing. |
-| Bellows Yard | 4 | 4.0 | +1.07 | 3.7 turns | Top of band. Watched. |
+| Bellows Yard | 3 | 4.0 | +1.07 | 2.8 turns | Below band on paper. The best raw pile in the market, and the reason the cost is watched at 3 ore. Simulation: about 3.7 buys per 4p game, not an auto-buy. |
 | Shipwright's Yard | 4 | 5.5 | +1.60 | 2.5 turns | Above band, gated by needing a legal vertex and 4 copies total. |
 | Quay Deed | 5 | 0 resources, 1 VP | n/a | n/a | 5 resources per VP. Same rate as a city, no board needed. |
-| Fleet Charter | 8 | 0 resources, 2 VP | n/a | n/a | 4 resources per VP, the best rate in the game, gated by 4 copies and 8 resources in one turn. |
+| Fleet Charter | 9 | 0 resources, 2 VP | n/a | n/a | 4.5 resources per VP, still the best rate in the game, gated by 4 copies and 9 resources in one turn. |
 
 ### 6.3 The band
 
 Market cards should land between 3 and 6 turns of payback. Anything under 3 is
-an auto-buy and anything over 6 is a trap. Two cards sit below 3
-(Survey Voyage, Shipwright's Yard) and both are capped by the award threshold
-or by the copy count, which is the intended way to allow a strong card without
-letting it dominate.
+an auto-buy and anything over 6 is a trap. Three cards sit below 3
+(Bellows Yard, Survey Voyage, Shipwright's Yard). Bellows Yard is the one to
+watch after its cost cut; the other two are capped by the award threshold or by
+the copy count, which is the intended way to allow a strong card without
+letting it dominate. Simulation says Bellows Yard settles at about one buy per
+player in 4p, so the payback table overstates it.
 
 No card is a pure trap. The three weakest on raw economics, Wrecker's Lamp,
 Guild Mason, and Quay Deed, are all strong in a specific situation. That is
@@ -469,7 +478,9 @@ Copy counts encode how often a plan should appear in a 4-player game:
   share a plan and one executes better.
 - 7 copies: Salvage Yard. The easy card. Slightly over-supplied on purpose so a
   beginner always has something sensible to buy.
-- 8 copies: Quay Deed. Enough that a blocked player is never without a sink.
+- 9 copies: Quay Deed. Enough that a blocked player is never without a sink,
+  plus one spare for the rare board-locked game where the charter VP would
+  otherwise run out before anyone reaches the target.
 
 ---
 
@@ -484,18 +495,18 @@ Market piles:
 Charters:
 
 ```
-8 (Quay Deed) + 4 (Fleet Charter) = 12
+9 (Quay Deed) + 4 (Fleet Charter) = 13
 ```
 
-Market total: 58 + 12 = 70.
+Market total: 58 + 13 = 71.
 
 Starting deck per player: 2 + 2 + 2 + 2 + 2 = 10.
 
-Deck size at the end of a 4-player game: 10 start + 11 to 13 purchases = 21 to
-23 cards, of which 1 to 3 are charters.
+Deck size at the end of a 4-player game: 10 start + 8 to 10 purchases = 18 to
+20 cards, of which 2 to 4 are charters.
 
-VP supply from cards: 8 Quay Deeds at 1 VP plus 4 Fleet Charters at 2 VP = 16
-VP available from the market, against roughly 40 VP needed across a 4-player
+VP supply from cards: 9 Quay Deeds at 1 VP plus 4 Fleet Charters at 2 VP = 17
+VP available from the market, against roughly 56 VP needed across a 4-player
 game. The board and the awards must carry the rest, which is what stops the
 charter stacks from becoming the whole game.
 

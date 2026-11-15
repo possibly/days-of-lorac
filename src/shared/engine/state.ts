@@ -2,12 +2,13 @@
  * Game creation, state cloning, and small shared state helpers.
  *
  * `createGame` consumes randomness in this fixed order:
- *   1. board rotation (one draw), 2. board mirror (one draw),
- *   3. one shuffle per player, in seat order, for the 10-card starting decks.
+ *   1. board rotation (one draw), 2. board mirror (one draw), 3. first seat
+ *   (one draw), 4. one shuffle per player, in seat order, for the 10-card
+ *   starting decks.
  * The robber starts on the desert, the market is stocked to printed counts, and
- * the snake setup order is built. Hands are drawn (5 each) when the last setup
- * road lands; drawing consumes no randomness. `version`/`turn` stay 0 until
- * then.
+ * the snake setup order is built from the seeded first seat. Hands are drawn (5
+ * each) when the last setup road lands; drawing consumes no randomness.
+ * `version`/`turn` stay 0 until then.
  */
 import {
   MAX_PLAYERS,
@@ -45,10 +46,12 @@ export function failure(code: ActionErrorCode, message: string): EngineFailure {
   return { code, message };
 }
 
-/** Snake setup seats: 4p [0,1,2,3,3,2,1,0], 3p [0,1,2,2,1,0], 2p [0,1,1,0]. */
-export function setupOrder(playerCount: number): Seat[] {
+/** Snake setup seats starting at `firstSeat` and running clockwise. */
+export function setupOrder(playerCount: number, firstSeat = 0): Seat[] {
   const forward: Seat[] = [];
-  for (let seat = 0; seat < playerCount; seat += 1) forward.push(seat);
+  for (let step = 0; step < playerCount; step += 1) {
+    forward.push((firstSeat + step) % playerCount);
+  }
   return [...forward, ...[...forward].reverse()];
 }
 
@@ -78,6 +81,9 @@ export function createGame(options: CreateGameOptions): GameState {
   rng = rotation.state;
   const mirror = randomInt(rng, 2);
   rng = mirror.state;
+  const firstDraw = randomInt(rng, playerCount);
+  rng = firstDraw.state;
+  const firstSeat = firstDraw.value;
   const board = buildBoard({ rotation: rotation.value, mirror: mirror.value });
 
   let nextCardIid = 0;
@@ -120,7 +126,7 @@ export function createGame(options: CreateGameOptions): GameState {
   const market: Record<string, number> = {};
   for (const card of PURCHASABLE_CARDS) market[card.id] = card.copies;
 
-  const order = setupOrder(playerCount);
+  const order = setupOrder(playerCount, firstSeat);
   const discardRequired: Record<Seat, number> = {};
   const longestRoadLength: Record<Seat, number> = {};
   for (let seat = 0; seat < playerCount; seat += 1) {
@@ -129,13 +135,14 @@ export function createGame(options: CreateGameOptions): GameState {
   }
 
   const state: GameState = {
-    gameId: `lorac-${seed}-${playerCount}`,
+    gameId: options.gameId ?? `lorac-${seed}-${playerCount}`,
     version: 0,
     config: { playerCount, targetVp: targetVpFor(playerCount), seed },
     rng,
     phase: 'setup',
     turn: 0,
-    currentSeat: order[0] ?? 0,
+    firstSeat,
+    currentSeat: order[0] ?? firstSeat,
     setup: { order, index: 0, step: 'settlement', pendingVertex: null },
     board,
     buildings: {},
@@ -158,9 +165,9 @@ export function createGame(options: CreateGameOptions): GameState {
   addLog(
     state,
     'setup',
-    `New game: ${playerCount} players, first to ${state.config.targetVp} victory points.`,
+    `New game: ${playerCount} players, first to ${state.config.targetVp} victory points. ${state.players[firstSeat]?.name ?? 'Someone'} picks first.`,
     null,
-    { playerCount, targetVp: state.config.targetVp, seed },
+    { playerCount, targetVp: state.config.targetVp, firstSeat },
   );
   refreshDerived(state);
   return state;
@@ -192,6 +199,7 @@ export function cloneState(state: GameState): GameState {
     rng: state.rng,
     phase: state.phase,
     turn: state.turn,
+    firstSeat: state.firstSeat,
     currentSeat: state.currentSeat,
     setup: state.setup
       ? {

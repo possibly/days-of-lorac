@@ -16,8 +16,8 @@ flag locked rules I moved. Here is the full list of deviations.
 
 | Brief says | This design | Why |
 | --- | --- | --- |
-| Ten victory points wins | 12 (4p), 14 (3p), 16 (2p) | At 10 the game ends around player turn 8, about 18 minutes. The arithmetic is in section 12. |
-| Discard down to 7 on a 7 | Discard down to 9 | Charter purchases need you to hold 5 to 8 resources. A limit of 7 makes Fleet Charter (8 resources) impossible to assemble. |
+| Ten victory points wins | 14 (4p), 16 (3p), 18 (2p) | At 10 the game ends around player turn 8, about 18 minutes. Fourteen puts the 4p median at round 11 in 500 simulated games. The arithmetic is in section 12. |
+| Discard down to 7 on a 7 | Discard down to 9 | Charter purchases need you to hold 5 to 9 resources. A limit of 7 makes Fleet Charter (9 resources) impossible to assemble. |
 | Second settlement gives starting resources | No starting resources | The 10-card starting deck already hands you 5 resources on turn 1. Adding 3 more makes a road plus settlement on turn 1 routine. |
 | Anyone may trade on anyone's turn | Only the active player opens trade offers | Every other player would need to answer out of turn, which stalls the round. Others still accept or decline. |
 | Unplayed cards discard at end of turn | Kept. Played cards also stay in play until end of turn | Draws must not be able to reshuffle cards you already played, or a small deck can loop forever. |
@@ -28,7 +28,7 @@ flag locked rules I moved. Here is the full list of deviations.
 
 Nothing else in the skeleton changed. Terrain mix, token set, hex geometry,
 port counts, Catan build costs, draw-to-5, one purchase per turn, and "ten
-victory points wins immediately" (now twelve) all survive.
+victory points wins immediately" (now fourteen in 4p) all survive.
 
 ---
 
@@ -68,7 +68,7 @@ the leader is unbeatable at minute 22, the design failed.
 
 ### 4.1 Board
 
-19 hexes arranged 3-4-5-4-3. 54 vertices, 72 edges, 18 coastal edges.
+19 hexes arranged 3-4-5-4-3. 54 vertices, 72 edges, 30 coastal edges.
 
 Terrain: 4 wood, 4 sheep, 4 wheat, 3 brick, 3 ore, 1 desert.
 
@@ -116,8 +116,8 @@ That is deliberate: the deck is the variance insurance, the board is the prize.
 
 ### 4.2 Ports
 
-Exactly 9 ports on the 18 coastal edges, on every second coastal edge travelling
-clockwise. Fixed order from the top-left coastal edge, rotating with the board:
+Exactly 9 ports on the 30 coastal edges, spaced 3 or 4 edges apart around the
+ring. Fixed order from the top-left coastal edge, rotating with the board:
 `ore 2:1, generic 3:1, wheat 2:1, generic 3:1, brick 2:1, generic 3:1,
 sheep 2:1, generic 3:1, wood 2:1`.
 
@@ -145,15 +145,15 @@ available. 70 cards total. Full text, effect specs, and bot heuristics are in
 | Wrecker's Lamp | 3 sheep | 5 | 1 renown, optional robber move and steal |
 | Provisioner | 2 wheat | 6 | Gain 2 resources of your choice |
 | Survey Voyage | 3 wheat | 6 | Gain 2 renown, draw 1 |
-| Bellows Yard | 4 ore | 6 | Gain 2 ore, 2 wheat |
+| Bellows Yard | 3 ore | 6 | Gain 2 ore, 2 wheat |
 | Shipwright's Yard | 4 ore | 4 | 1 renown, free settlement (fallback: 2 ore 2 wheat) |
-| Quay Deed | 1 of each | 8 | 1 VP, dead draw forever |
-| Fleet Charter | 3 ore 3 wheat 2 brick | 4 | 2 VP, dead draw forever |
+| Quay Deed | 1 of each | 9 | 1 VP, dead draw forever |
+| Fleet Charter | 3 ore 3 wheat 3 brick | 4 | 2 VP, dead draw forever |
 
-Pile subtotal 58. Charter subtotal 12. Grand total 70.
+Pile subtotal 58. Charter subtotal 13. Grand total 71.
 
 When a pile is empty it stays empty for the rest of the game. Charters are
-stacks, not piles: they never restock and there are only 8 and 4 of them.
+stacks, not piles: they never restock and there are only 9 and 4 of them.
 
 ### 4.5 Personal decks
 
@@ -179,18 +179,23 @@ otherwise.
    rotate with it.
 2. Place the robber on C3, the desert.
 3. Stock the market and both charter stacks to their printed counts.
-4. Determine seat order 1, 2, 3, 4.
+4. Draw the first seat from the seeded RNG. Seats are numbered 0 to n-1, and
+   play runs clockwise from the first seat.
 5. Snake draft for starting settlements, each placement taking one settlement
-   and one road that must touch that settlement.
-   - 4 players: 1, 2, 3, 4, 4, 3, 2, 1
-   - 3 players: 1, 2, 3, 3, 2, 1
-   - 2 players: 1, 2, 2, 1
+   and one road that must touch that settlement. The snake starts at the drawn
+   first seat S and runs clockwise:
+   - 4 players: S, S+1, S+2, S+3, S+3, S+2, S+1, S
+   - 3 players: S, S+1, S+2, S+2, S+1, S
+   - 2 players: S, S+1, S+1, S
 6. No starting resources.
 7. Each player shuffles their 10-card starting deck and draws 5. The game
-   begins with player 1's first turn.
+   begins with the first seat's first turn, and turns pass clockwise from there.
 
 The snake gives the last picker two adjacent picks, which is the standard
-compensation for picking last. Player 1 picks first and also plays first.
+compensation for picking last. The first seat also plays first, so it gets the
+first pick and the first turn. Drawing that seat from the game seed spreads
+both advantages across seats from game to game; a fixed seat 0 wins visibly
+more often across a batch of games.
 
 ---
 
@@ -429,9 +434,9 @@ Target depends on player count:
 
 | Players | Target |
 | --- | --- |
-| 4 | 12 |
-| 3 | 14 |
-| 2 | 16 |
+| 4 | 14 |
+| 3 | 16 |
+| 2 | 18 |
 
 VP = 1 per settlement, 2 per city, +1 or +2 per charter owned, +2 for each award.
 
@@ -477,7 +482,9 @@ below are what to move.
 
 Cumulative resources across 12 turns: about 5.75 + 6.2 + 6.6 + 7.0 averaged
 over the span, call it 6.6 per turn, so about 79 resources for a 12-turn
-player. That is the budget the scoring math spends.
+player. A 14-VP 4p winner spends about 85 to 95 resources including purchases,
+which is into the 13th turn if it had to come from raw income alone; the board
+and the charter endgame shorten that.
 
 Board income is roughly 12% of income on turn 1 and about 28% by turn 12. The
 deck carries the early game and the board compounds into the late game. This is
@@ -486,12 +493,12 @@ the main reason the two strategies converge instead of one trivially winning.
 ### 12.3 Why the game cannot end on turn 6
 
 The best possible VP rate is a city upgrade: 5 resources for +1 VP. A player
-starts with 2 VP from setup. To reach 12 VP in 4p they need 10 more, which at
-the best possible rate costs 50 resources. Maximum early income is about 7 per
-turn, and that assumes a perfect board and perfect rolls. 50/7 is 7.1 turns.
+starts with 2 VP from setup. To reach 14 VP in 4p they need 12 more, which at
+the best possible rate costs 60 resources. Maximum early income is about 7 per
+turn, and that assumes a perfect board and perfect rolls. 60/7 is 8.6 turns.
 
-The hard floor is player turn 8. Turn 6 is arithmetically impossible. Real
-games land at turn 9 to 13 because nobody has a perfect board and because
+The hard floor is player turn 9. Turn 6 is arithmetically impossible. Real
+games land at turn 10 to 13 because nobody has a perfect board and because
 roads, not settlements, are the actual bottleneck: the distance rule means each
 new settlement needs two fresh roads, so a marginal settlement costs 8, not 4.
 
@@ -499,20 +506,22 @@ new settlement needs two fresh roads, so a marginal settlement costs 8, not 4.
 
 | Players | Target | Turns per player | Rounds | Wall clock at 32s/turn plus 2 min draft |
 | --- | --- | --- | --- | --- |
-| 4 | 12 | 11 to 13 | 11 to 13 | 25 to 31 min |
-| 3 | 14 | 12 to 14 | 12 to 14 | 21 to 25 min |
-| 2 | 16 | 14 to 17 | 14 to 17 | 17 to 21 min |
+| 4 | 14 | 11 to 13 | 11 to 13 | 25 to 31 min |
+| 3 | 16 | 11 to 13 | 11 to 13 | 19 to 25 min |
+| 2 | 18 | 12 to 14 | 12 to 14 | 15 to 21 min |
 
 The wall clock column already includes the draft and one minute of end-of-game
-scoring. 4 players is the flagship and the one to tune against. 2 players runs
-short because two players take less wall clock per round than four; that is
-unavoidable without a different ruleset, and 2p is documented as the quick duel
-mode rather than the headline.
+scoring. 4 players is the flagship and the one to tune against. 2 and 3 players
+run shorter because fewer seats means less wall clock per round; that is
+unavoidable without a different ruleset, and they are documented as quicker
+modes rather than the headline.
 
-If simulation shows 4p games ending before round 10, the lever order is:
+Simulated medians over 500 4p games, 300 3p games and 300 2p games at Factor
+difficulty: 11 rounds in 4p, 11 in 3p, 12 in 2p. If simulation shows 4p games
+ending before round 10, the lever order is:
 
-1. Raise the 4p target to 13. Each point is worth about 0.9 of a turn.
-2. Cut one copy from the four cheapest piles.
+1. Raise the 4p target to 15. Each point is worth about 0.9 of a turn.
+2. Cut one copy from the two cheapest piles.
 3. Reduce the starting deck to 8 cards, 2 each of wood, brick, sheep, wheat,
    and remove the two ore cards. That is a 20% income cut and a much bigger
    change; try it last.
@@ -526,28 +535,28 @@ If simulation shows 4p games ending before round 10, the lever order is:
 | Source | Total available | Typical take for the winner |
 | --- | --- | --- |
 | Setup settlements | 2 per player | 2 |
-| New settlements | 1 each, board-limited | 3 to 4 |
-| City upgrades | +1 each, board-limited | 2 |
+| New settlements | 1 each, board-limited | 1 to 2 |
+| City upgrades | +1 each, board-limited | 5 to 6 |
 | Longest trade route | +2, one holder | 2 |
-| Largest expedition | +2, one holder | 2 |
-| Quay Deed | 1 VP, 8 copies | 1 to 2 |
+| Largest expedition | +2, one holder | 0 or 2 |
+| Quay Deed | 1 VP, 9 copies | 1 to 3 |
 | Fleet Charter | 2 VP, 4 copies | 0 or 2 |
-| Total | | 12 to 14 |
+| Total | | 14 to 15 |
 
-The winner typically has 5 or 6 occupied vertices, 2 of them cities, one
-award, and 1 to 3 charters. That is a real board presence and a real deck
-investment. Neither layer alone gets you there.
+The winner typically has 4 or 5 occupied vertices, nearly all upgraded to
+cities, one award, and 3 to 4 charter VP. That is a real board presence and a
+real deck investment. Neither layer alone gets you there.
 
-### 13.2 Why 12 and not 10
+### 13.2 Why 14 and not 10
 
-A 12-VP target needs about 79 resources of income and about 78 resources of
-spending, which at the income curve above is 11 to 13 turns. A 10-VP target
-needs about 62 and lands at turn 8 to 10, which is 18 to 22 minutes in 4p. The
-brief wants 25 to 35. Twelve is the number that makes the 4p clock right.
+A 14-VP target needs about 85 to 95 resources of income and spending, which at
+the income curve above is 11 to 13 turns. A 10-VP target needs about 62 and
+lands at turn 8 to 10, which is 18 to 22 minutes in 4p. The brief wants 25 to
+35. Fourteen is the number that makes the 4p clock right.
 
-Twelve also matters for a structural reason: at 10, a player who spends the
+Fourteen also matters for a structural reason: at 10, a player who spends the
 first five turns buying cards is simply behind and the deck layer is a trap. At
-12, the engine has time to pay back and the board rush runs out of good
+14, the engine has time to pay back and the board rush runs out of good
 vertices first. The deck becomes correct play instead of a hobby.
 
 ### 13.3 The two clocks
@@ -556,13 +565,14 @@ This is the design's spine, so it is stated plainly.
 
 The board is front-loaded. It pays off fast, it costs 8 resources per marginal
 VP once roads are counted, and it hits a wall when the good intersections are
-taken. In a 4-player game that wall arrives around the time the 20th settlement
-is placed, roughly turn 8.
+taken. In a 4-player game that wall arrives around the time the 15th building
+lands, roughly turn 9; by then most settlements have been upgraded to cities
+and no legal settlement vertex is left.
 
 The deck is back-loaded. It costs tempo for five or six turns, then it pays
 about 1.5 to 3 extra resources per turn and, more importantly, its income does
 not depend on the board at all. A deck player at turn 12 is buying a Fleet
-Charter every 1.2 turns.
+Charter roughly every second turn.
 
 Board rush finishes around turn 9 or 10 in a clean game. Deck build finishes
 around turn 12. But the board rush cannot be clean in a 4-player game, because
@@ -594,17 +604,17 @@ There is no catch-up mechanic that hands out free VP. Comebacks are earned.
 
 **4 players.** The designed game. Eight setup settlements means the map is
 contested from turn 1, the robber has real targets, and the market depletes
-visibly. Target 12.
+visibly. Target 14.
 
-**3 players.** Same rules, target 14. Six setup settlements. Each player gets
+**3 players.** Same rules, target 16. Six setup settlements. Each player gets
 better numbers than in 4p, so each player's income is about 0.3 higher, which
 is why the target rises. Ports are less contested and long roads are easier, so
 expect the route award to matter more here.
 
-**2 players.** Same rules, target 16. Four setup settlements, so both players
+**2 players.** Same rules, target 18. Four setup settlements, so both players
 get excellent land and lots of empty space. Expect a fast, high-income,
 low-interaction game where the robber is close to a targeted attack and player
-trades are cheap. It runs 16 to 22 minutes. Workable, not the headline.
+trades are cheap. It runs 15 to 21 minutes. Workable, not the headline.
 
 No count-specific card or rule exceptions. The only thing that changes is the
 target. Keeping it that way is worth real money in testing time.
@@ -792,8 +802,8 @@ Numbered so tests can reference them.
     tests and in the server.
 43. Determinism: given a seed plus an ordered action list, the final state must
     be identical. Randomness comes only from the seeded RNG, consumed in a
-    fixed order: board orientation, shuffle per player in seat order, robber
-    steals, discard choices.
+    fixed order: board orientation (rotation then mirror), first seat, shuffle
+    per player in seat order, then robber steals and discard choices.
 
 ---
 
@@ -856,10 +866,10 @@ Production: roll 11. A2 and C1 fire. The 9-pip settlement touches A2 for
 
 Pool: 2 wood, 1 brick, 2 sheep, 2 wheat, 3 ore. Ten resources.
 
-Action: Bellows Yard costs 4 ore and P1 has 3. P1 buys Provisioner for
-2 wheat, which is the first choice card of the game, and takes 1 wheat and
-1 ore. Then P1 builds one road for wood + brick, heading for the coast and a
-generic port.
+Action: Bellows Yard costs 3 ore and P1 has 3, so it is affordable and would
+keep the ore engine running. P1 buys Provisioner for 2 wheat instead, the first
+choice card of the game, and takes 1 wheat and 1 ore. Then P1 builds one road
+for wood + brick, heading for the coast and a generic port.
 
 Pool after: 1 wood, 2 sheep, 1 wheat, 4 ore. That is one resource short of a
 city, which is exactly the kind of two-turn plan the design wants players
@@ -895,7 +905,7 @@ deadline.
 **MVP, ship this.**
 
 - 19-hex board, fixed template, 12 orientations, ports.
-- 4-player and 3-player, target 12 and 14. 2-player supported at target 16 but
+- 4-player and 3-player, target 14 and 16. 2-player supported at target 18 but
   not tuned.
 - Full turn cycle, robber, discards, steals.
 - All Catan building, all bank and port trades.
@@ -968,9 +978,14 @@ time.
 **5. The charter stacks define the endgame too much.** If the last Fleet
 Charter is always the winning move, the game ends on a purchase rather than a
 board read. Watch the percentage of games decided by a charter purchase versus
-a settlement or an award. Target: no more than 35%. Lever: rise from 4 to 6
-copies of Fleet Charter, which makes the endgame about positioning for them
-rather than grabbing the last one.
+a settlement or an award. In 500 simulated 4p games at target 14, 32% of games
+ended on a Fleet Charter and none stalled; any charter, usually a Quay Deed,
+ended 90% of games. That last number is structural rather than a tuning miss:
+the board saturates at about 15 buildings, almost all of them cities, so the
+last point or two usually has to come from a charter. Levers if it feels bad:
+raise the target by one, or make cities cost one more resource so the board
+supports more settlements late. Do not remove charters; a blocked player needs
+the sink.
 
 **6. Provisioner and Wrecker's Lamp are the only two cards that need a real
 modal.** The other two choice cards, Guild Mason and Shipwright's Yard, just
@@ -986,8 +1001,8 @@ be someone's first game. Watch for robber-spam and for trades being trivially
 one-sided with only one buyer. Mitigation if it is bad: raise the 2p target to
 18 and accept it as a variant, or disable player trades in 2p.
 
-**8. The market runs dry in high-purchase games.** 58 pile cards plus 12
-charters against about 48 purchases in a 4p game leaves margin, but the good
+**8. The market runs dry in high-purchase games.** 58 pile cards plus 13
+charters against about 36 purchases in a 4p game leaves margin, but the good
 piles will empty. Watch for a late game where the only cards left are ones
 nobody wants. That is acceptable scarcity as long as the school of thought is
 not deleted before turn 4.
@@ -1031,12 +1046,14 @@ Not rules, but the rules above imply these.
 
 Answered by simulation or playtest, not by more design:
 
-1. Is 12/14/16 the right target ladder, or does 4p want 13?
-2. Is Bellows Yard at 4 ore too strong, given it is the only card that turns
-   ore into wheat at scale?
+1. Is 14/16/18 the right target ladder, or does 4p want 15?
+2. Is Bellows Yard at 3 ore too strong, given it is the only card that turns
+   ore into wheat at scale? Simulation says about 3.7 buys per 4p game, about
+   one per player, which is lively rather than dominant.
 3. Does the 9-resource limit ever bind in a real game, or should it go back to
-   7 and Fleet Charter drop to a 6-resource cost?
-4. Is one purchase per turn enough at the 3p target of 14, or do 3p games feel
+   7? A Fleet Charter at 9 resources now sits exactly on the limit, so holding
+   the full cost with no margin is the intended gamble.
+4. Is one purchase per turn enough at the 3p target of 16, or do 3p games feel
    starved of deck decisions?
 
 Owner of this file is the design agent. Card numbers live in `CARDS.md`.

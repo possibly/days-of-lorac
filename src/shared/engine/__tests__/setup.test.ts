@@ -3,25 +3,42 @@ import { HAND_SIZE } from '../../constants.js';
 import type { EdgeId, GameState, Seat } from '../../types.js';
 import { applyAction, createGame, legalMoves } from '../index.js';
 import { boardIndex } from '../board.js';
-import { act, finishSetup, newGame, reject, setupGame } from './helpers.js';
+import { act, finishSetup, newGame, reject, setNextRoll, setupGame } from './helpers.js';
 
 function snakeSeats(state: GameState): Seat[] {
   return state.setup?.order.slice() ?? [];
 }
 
+/** The snake order the engine promises for a given starting seat. */
+function rotatedSnake(playerCount: number, firstSeat: Seat): Seat[] {
+  const forward = Array.from({ length: playerCount }, (_, step) => (firstSeat + step) % playerCount);
+  return [...forward, ...[...forward].reverse()];
+}
+
 describe('setup', () => {
-  it('builds the snake order for 4, 3 and 2 players', () => {
-    expect(snakeSeats(newGame(4))).toEqual([0, 1, 2, 3, 3, 2, 1, 0]);
-    expect(snakeSeats(newGame(3))).toEqual([0, 1, 2, 2, 1, 0]);
-    expect(snakeSeats(newGame(2))).toEqual([0, 1, 1, 0]);
+  it('builds the snake order from the seeded first seat for 4, 3 and 2 players', () => {
+    for (const count of [4, 3, 2]) {
+      const seen = new Set<Seat>();
+      for (let offset = 0; offset < 60; offset += 1) {
+        const state = newGame(count, 1 + offset);
+        expect(snakeSeats(state)).toEqual(rotatedSnake(count, state.firstSeat));
+        expect(state.currentSeat).toBe(state.firstSeat);
+        expect(state.setup?.order).toHaveLength(count * 2);
+        seen.add(state.firstSeat);
+      }
+      // Every seat starts at least one of the sampled games.
+      expect([...seen].sort()).toEqual(
+        Array.from({ length: count }, (_, seat) => seat).sort(),
+      );
+    }
   });
 
-  it('starts with seat 0 placing a settlement, no resources, undealt hands', () => {
+  it('starts with the seeded first seat placing a settlement, no resources, undealt hands', () => {
     const state = newGame(4, 7);
     expect(state.phase).toBe('setup');
     expect(state.turn).toBe(0);
     expect(state.version).toBe(0);
-    expect(state.currentSeat).toBe(0);
+    expect(state.currentSeat).toBe(state.firstSeat);
     expect(state.setup?.step).toBe('settlement');
     expect(state.robberHex).toBe('C3');
     for (const player of state.players) {
@@ -35,15 +52,16 @@ describe('setup', () => {
 
   it('places settlement then road for the same seat, and only roads touching that settlement', () => {
     let state = newGame(4, 3);
-    const legal = legalMoves(state, 0);
+    const seat = state.currentSeat;
+    const legal = legalMoves(state, seat);
     const vertex = legal.setupSettlements[0] as string;
-    state = act(state, 0, { type: 'setupSettlement', vertex });
+    state = act(state, seat, { type: 'setupSettlement', vertex });
     expect(state.setup?.step).toBe('road');
     expect(state.setup?.pendingVertex).toBe(vertex);
-    expect(state.buildings[vertex]).toEqual({ owner: 0, type: 'settlement' });
-    expect(state.currentSeat).toBe(0);
+    expect(state.buildings[vertex]).toEqual({ owner: seat, type: 'settlement' });
+    expect(state.currentSeat).toBe(seat);
 
-    const roads = legalMoves(state, 0).setupRoads;
+    const roads = legalMoves(state, seat).setupRoads;
     expect(roads.length).toBeGreaterThan(0);
     const index = boardIndex(state.board);
     for (const edgeId of roads) {
@@ -55,19 +73,21 @@ describe('setup', () => {
     const unrelated = state.board.edges.find(
       (edge) => edge.a !== vertex && edge.b !== vertex && state.roads[edge.id] === undefined,
     ) as { id: EdgeId };
-    const problem = reject(state, 0, { type: 'setupRoad', edge: unrelated.id });
+    const problem = reject(state, seat, { type: 'setupRoad', edge: unrelated.id });
     expect(problem.code).toBe('NOT_CONNECTED');
 
-    state = act(state, 0, { type: 'setupRoad', edge: roads[0] as EdgeId });
-    expect(state.roads[roads[0] as EdgeId]).toBe(0);
+    const nextSeat = state.setup?.order[1] as Seat;
+    state = act(state, seat, { type: 'setupRoad', edge: roads[0] as EdgeId });
+    expect(state.roads[roads[0] as EdgeId]).toBe(seat);
     expect(state.setup?.step).toBe('settlement');
     expect(state.setup?.pendingVertex).toBeNull();
     expect(state.setup?.index).toBe(1);
-    expect(state.currentSeat).toBe(1);
+    expect(state.currentSeat).toBe(nextSeat);
   });
 
-  it('follows the snake for every pick and ends in seat 0 turn 1', () => {
+  it('follows the snake for every pick and ends on the first seat at turn 1', () => {
     let state = newGame(4, 11);
+    const firstSeat = state.firstSeat;
     const seatTrace: Seat[] = [];
     let guard = 0;
     while (state.phase === 'setup') {
@@ -75,17 +95,20 @@ describe('setup', () => {
       const legal = legalMoves(state, seat);
       if (legal.setupSettlements.length > 0) {
         seatTrace.push(seat);
-        state = act(state, seat, { type: 'setupSettlement', vertex: legal.setupSettlements[0] as string });
+        state = act(state, seat, {
+          type: 'setupSettlement',
+          vertex: legal.setupSettlements[0] as string,
+        });
       } else {
         state = act(state, seat, { type: 'setupRoad', edge: legal.setupRoads[0] as EdgeId });
       }
       guard += 1;
       if (guard > 40) throw new Error('setup loop');
     }
-    expect(seatTrace).toEqual([0, 1, 2, 3, 3, 2, 1, 0]);
+    expect(seatTrace).toEqual(rotatedSnake(4, firstSeat));
     expect(state.phase).toBe('roll');
     expect(state.turn).toBe(1);
-    expect(state.currentSeat).toBe(0);
+    expect(state.currentSeat).toBe(firstSeat);
     expect(state.setup).toBeNull();
     for (const player of state.players) {
       expect(player.hand).toHaveLength(HAND_SIZE);
@@ -98,21 +121,35 @@ describe('setup', () => {
     );
   });
 
+  it('keeps play clockwise from the first seat', () => {
+    for (const count of [4, 3, 2]) {
+      let state = finishSetup(newGame(count, 23 + count));
+      const start = state.currentSeat;
+      state = act(setNextRoll(state, 8), start, { type: 'roll' });
+      state = act(state, start, { type: 'endTurn' });
+      expect(state.currentSeat).toBe((start + 1) % count);
+    }
+  });
+
   it('applies the distance rule during setup and rejects a non-touching road', () => {
     let state = newGame(4, 5);
-    const first = legalMoves(state, 0).setupSettlements[0] as string;
-    state = act(state, 0, { type: 'setupSettlement', vertex: first });
-    state = act(state, 0, { type: 'setupRoad', edge: legalMoves(state, 0).setupRoads[0] as EdgeId });
+    const seat = state.currentSeat;
+    const otherSeat = state.setup?.order[1] as Seat;
+    const first = legalMoves(state, seat).setupSettlements[0] as string;
+    state = act(state, seat, { type: 'setupSettlement', vertex: first });
+    state = act(state, seat, { type: 'setupRoad', edge: legalMoves(state, seat).setupRoads[0] as EdgeId });
 
     const index = boardIndex(state.board);
     const neighbour = index.vertexNeighbors.get(first)?.[0] as string;
-    const problem = reject(state, 1, { type: 'setupSettlement', vertex: neighbour });
+    const problem = reject(state, otherSeat, { type: 'setupSettlement', vertex: neighbour });
     expect(problem.code).toBe('TOO_CLOSE');
 
-    // Legal pick for seat 1, but seat 0 cannot act out of turn.
-    const other = legalMoves(state, 1).setupSettlements.find((vertex) => vertex !== neighbour);
+    // Legal pick for the next seat, but the first seat cannot act out of turn.
+    const other = legalMoves(state, otherSeat).setupSettlements.find(
+      (vertex) => vertex !== neighbour,
+    );
     expect(other).toBeDefined();
-    const outOfTurn = reject(state, 0, { type: 'setupSettlement', vertex: other as string });
+    const outOfTurn = reject(state, seat, { type: 'setupSettlement', vertex: other as string });
     expect(outOfTurn.code).toBe('NOT_YOUR_TURN');
   });
 
@@ -125,8 +162,9 @@ describe('setup', () => {
 
   it('increments version and log for each accepted setup placement only', () => {
     const start = newGame(3, 21);
-    const legal = legalMoves(start, 0);
-    const afterSettlement = act(start, 0, {
+    const seat = start.currentSeat;
+    const legal = legalMoves(start, seat);
+    const afterSettlement = act(start, seat, {
       type: 'setupSettlement',
       vertex: legal.setupSettlements[0] as string,
     });
@@ -135,9 +173,9 @@ describe('setup', () => {
     expect(afterSettlement.log[afterSettlement.log.length - 1]?.kind).toBe('setup');
 
     // A rejected action does not bump the version.
-    const failed = applyAction(afterSettlement, 2, {
+    const failed = applyAction(afterSettlement, (seat + 2) % 3, {
       type: 'setupRoad',
-      edge: legalMoves(afterSettlement, 0).setupRoads[0] as EdgeId,
+      edge: legalMoves(afterSettlement, seat).setupRoads[0] as EdgeId,
     });
     expect(failed.ok).toBe(false);
     expect(afterSettlement.version).toBe(start.version + 1);
@@ -154,9 +192,10 @@ describe('setup', () => {
     for (const count of [2, 3]) {
       const state = finishSetup(createGame({ playerCount: count, seed: 99 + count }));
       expect(state.phase).toBe('roll');
+      expect(state.currentSeat).toBe(state.firstSeat);
       expect(Object.keys(state.buildings)).toHaveLength(count * 2);
       expect(Object.keys(state.roads)).toHaveLength(count * 2);
-      expect(state.config.targetVp).toBe(count === 2 ? 16 : 14);
+      expect(state.config.targetVp).toBe(count === 2 ? 18 : 16);
     }
   });
 });

@@ -30,20 +30,20 @@ function craftVp(
 }
 
 describe('victory', () => {
-  it('uses 16 / 14 / 12 for 2 / 3 / 4 players', () => {
-    expect(newGame(2).config.targetVp).toBe(16);
-    expect(newGame(3).config.targetVp).toBe(14);
-    expect(newGame(4).config.targetVp).toBe(12);
+  it('uses 18 / 16 / 14 for 2 / 3 / 4 players', () => {
+    expect(newGame(2).config.targetVp).toBe(18);
+    expect(newGame(3).config.targetVp).toBe(16);
+    expect(newGame(4).config.targetVp).toBe(14);
   });
 
   it('wins instantly on a charter purchase, then refuses further actions', () => {
     let state = actionGame(4, 300);
-    state = craftVp(state, 0, { settlements: 4, cities: 3 }); // 4 + 6 = 10
-    expect(scorePlayer(state, 0).total).toBe(10);
-    state = setResources(state, 0, { ore: 3, wheat: 3, brick: 2, wood: 5 });
+    state = craftVp(state, 0, { settlements: 4, cities: 4 }); // 4 + 8 = 12
+    expect(scorePlayer(state, 0).total).toBe(12);
+    state = setResources(state, 0, { ore: 3, wheat: 3, brick: 3, wood: 5 });
 
     const won = act(state, 0, { type: 'buyCard', defId: 'fleet-charter' });
-    expect(scorePlayer(won, 0).total).toBe(12);
+    expect(scorePlayer(won, 0).total).toBe(14);
     expect(won.phase).toBe('gameOver');
     expect(won.winner).toBe(0);
     expect(won.log.some((entry) => entry.kind === 'win')).toBe(true);
@@ -55,24 +55,29 @@ describe('victory', () => {
 
   it('wins on a settlement build', () => {
     let state = actionGame(4, 301);
-    state = craftVp(state, 0, { settlements: 5, cities: 3 }); // 5 + 6 = 11
-    expect(scorePlayer(state, 0).total).toBe(11);
+    state = craftVp(state, 0, { settlements: 5, cities: 4 }); // 5 + 8 = 13
+    expect(scorePlayer(state, 0).total).toBe(13);
     const extended = extendToSettlement(state, 0);
     const funded = setResources(extended.state, 0, { wood: 4, brick: 4, sheep: 4, wheat: 4 });
     const won = act(funded, 0, { type: 'buildSettlement', vertex: extended.vertex });
-    expect(scorePlayer(won, 0).total).toBe(12);
+    expect(scorePlayer(won, 0).total).toBe(14);
     expect(won.phase).toBe('gameOver');
     expect(won.winner).toBe(0);
   });
 
   it('wins mid-card on renown and stops the remaining effects', () => {
     let state = actionGame(4, 302);
-    state = craftVp(state, 0, { settlements: 4, cities: 3, renown: 2 }); // 10 VP, no award yet
-    expect(scorePlayer(state, 0).total).toBe(10);
+    state = craftVp(state, 0, {
+      settlements: 5,
+      cities: 3,
+      charters: { 'quay-deed': 1 },
+      renown: 2,
+    }); // 5 + 6 + 1 = 12 VP, no award yet
+    expect(scorePlayer(state, 0).total).toBe(12);
     expect(state.awards.largestExpedition).toBeNull();
 
     const extended = extendToSettlement(state, 0);
-    const ready = setHand(extended.state, 0, ["shipwrights-yard"]);
+    const ready = setHand(extended.state, 0, ['shipwrights-yard']);
     const iid = ready.players[0]?.hand[0]?.iid as number;
 
     const won = act(ready, 0, {
@@ -81,11 +86,11 @@ describe('victory', () => {
       choice: { kind: 'settlement', vertex: extended.vertex },
     });
 
-    // The renown pushed 3 -> award -> 12 VP before the free settlement ran.
+    // The renown pushed 3 -> award -> 14 VP before the free settlement ran.
     expect(won.phase).toBe('gameOver');
     expect(won.winner).toBe(0);
     expect(won.awards.largestExpedition).toBe(0);
-    expect(scorePlayer(won, 0).total).toBe(12);
+    expect(scorePlayer(won, 0).total).toBe(14);
     expect(won.buildings[extended.vertex]).toBeUndefined();
     expect(won.players[0]?.renown).toBe(3);
   });
@@ -93,7 +98,7 @@ describe('victory', () => {
   it('leaves the game running below the target and blocks actions only at the end', () => {
     let state = actionGame(4, 303);
     state = craftVp(state, 0, { settlements: 3, cities: 2 }); // 7 VP
-    state = setResources(state, 0, { ore: 3, wheat: 3, brick: 2 });
+    state = setResources(state, 0, { ore: 3, wheat: 3, brick: 3 });
     const bought = act(state, 0, { type: 'buyCard', defId: 'fleet-charter' });
     expect(scorePlayer(bought, 0).total).toBe(9);
     expect(bought.phase).toBe('action');

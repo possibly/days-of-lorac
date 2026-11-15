@@ -96,6 +96,10 @@ export type ServerMessage =
       type: 'game';
       roomCode: string;
       you: Seat;
+      /** Host of the room, so a refreshed guest does not get rematch rights. */
+      hostSeat?: Seat;
+      /** Seats currently flown by the bot because the human dropped. */
+      pilotSeats?: Seat[];
       token: string;
       view: GameView;
     }

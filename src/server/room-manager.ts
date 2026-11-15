@@ -10,6 +10,7 @@
  * Sockets are `ClientConnection` objects and time comes from a `Clock`, so the
  * unit tests run the whole thing without a network and without waiting.
  */
+import { randomUUID } from 'node:crypto';
 import { RESOURCES } from '@shared/types';
 import type {
   ActionResult,
@@ -37,6 +38,7 @@ import {
   newReconnectToken,
   normalizeCode,
   occupiedSlots,
+  pilotSeats,
   randomCode,
   sanitizeChat,
   sanitizeName,
@@ -312,12 +314,13 @@ export class RoomManager {
 
     // Mid-game the seat has to stay: the game has a fixed player count. The
     // bots take over right away because the human said goodbye.
-    this.broadcast(room);
-    this.systemChat(room, `${slot.name} left the game.`);
     if (room.status === 'playing') {
       slot.takeover = true;
       this.clearSeatTimers(slot);
     }
+    this.promoteHost(room);
+    this.broadcast(room);
+    this.systemChat(room, `${slot.name} left the game.`);
     this.updateCleanup(room);
     this.scheduleBots(room);
   }
@@ -771,6 +774,8 @@ export class RoomManager {
       type: 'game',
       roomCode: room.code,
       you: slot.seat,
+      hostSeat: room.hostSeat,
+      pilotSeats: pilotSeats(room),
       token: slot.token,
       view,
     });
@@ -895,6 +900,9 @@ export class RoomManager {
     return createGame({
       playerCount,
       seed: this.nextSeed(),
+      // Random, so the public id says nothing about the seed. Bot tie-breaks
+      // still work: they hash the id, they do not invert it.
+      gameId: randomUUID(),
       names: slots.map((slot) => slot.name),
       bots: slots.map((slot) => slot.isBot),
       difficulties: slots.map((slot) =>
@@ -917,6 +925,25 @@ export class RoomManager {
     const human = occupied.find((slot) => !slot.isBot);
     const next = human ?? occupied[0];
     if (next) room.hostSeat = next.seat;
+  }
+
+  /**
+   * Mid-game host rights follow a connected human. Called when the host seat
+   * stops being one: they left for good, or a bot took over after the 45s
+   * timeout. With no connected human left the seat stays put, so a host who
+   * reconnects keeps its room.
+   *
+   * Callers broadcast afterwards, so the new `hostSeat` rides the next view.
+   */
+  private promoteHost(room: Room): void {
+    const current = findSlot(room, room.hostSeat);
+    if (current && !current.isBot && current.connected) return;
+    const next = occupiedSlots(room).find(
+      (slot) => !slot.isBot && slot.connected && slot.seat !== room.hostSeat,
+    );
+    if (!next) return;
+    room.hostSeat = next.seat;
+    this.systemChat(room, `${next.name} is the host now.`);
   }
 
   /** Drops a lobby seat, notifying its socket if it still has one. */
@@ -948,6 +975,7 @@ export class RoomManager {
       if (room.closed || room.status !== 'playing') return;
       if (slot.connected || slot.isBot) return;
       slot.takeover = true;
+      this.promoteHost(room);
       this.systemChat(room, `${slot.name} is being played by a bot until they return.`);
       this.broadcast(room);
       this.scheduleBots(room);
@@ -1083,12 +1111,13 @@ export class RoomManager {
     if (room.status === 'lobby') {
       this.freeSeat(room, slot, 'left the room');
     } else {
-      this.broadcast(room);
-      this.systemChat(room, `${slot.name} left the game.`);
       if (room.status === 'playing') {
         slot.takeover = true;
         this.clearSeatTimers(slot);
       }
+      this.promoteHost(room);
+      this.broadcast(room);
+      this.systemChat(room, `${slot.name} left the game.`);
     }
     this.updateCleanup(room);
     if (room.status === 'playing') this.scheduleBots(room);

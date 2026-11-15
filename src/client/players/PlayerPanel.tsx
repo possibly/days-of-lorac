@@ -9,7 +9,8 @@ interface PlayerPanelProps {
   player: PlayerView;
   isCurrent: boolean;
   isYou: boolean;
-  botPilot: boolean;
+  /** True when a bot is flying this seat because the human dropped. */
+  isPilot: boolean;
   compact?: boolean;
   onExpand?: () => void;
   letters?: boolean;
@@ -23,11 +24,12 @@ const RESOURCE_LABEL: Record<Resource, string> = {
   ore: 'Ore',
 };
 
-export function PlayerPanel({ view, player, isCurrent, isYou, botPilot, compact, onExpand, letters }: PlayerPanelProps): JSX.Element {
+export function PlayerPanel({ view, player, isCurrent, isYou, isPilot, compact, onExpand, letters }: PlayerPanelProps): JSX.Element {
   const color = seatColor(player.seat);
   const target = view.targetVp;
   const vp = player.vp;
   const pct = Math.max(0, Math.min(1, target > 0 ? vp / target : 0));
+  const segments = Math.max(1, Math.round(target));
   const breakdown = player.vpBreakdown;
   const chips: { key: string; label: string; value: number }[] = [
     { key: 'settlements', label: 'settlements', value: breakdown.settlements },
@@ -45,6 +47,9 @@ export function PlayerPanel({ view, player, isCurrent, isYou, botPilot, compact,
   ].join(', ');
   const charterCount = Object.values(player.charters).reduce((sum, count) => sum + count, 0);
   const disconnected = !player.connected;
+  // Offline only when a human dropped and nobody is flying the seat.
+  const offline = disconnected && !player.isBot && !isPilot;
+  const filled = Math.min(segments, Math.round(pct * segments));
 
   if (compact) {
     return (
@@ -67,8 +72,8 @@ export function PlayerPanel({ view, player, isCurrent, isYou, botPilot, compact,
           ))}
         </span>
         {player.isBot ? <span className="badge badge-bot">BOT</span> : null}
-        {disconnected ? <span className="badge badge-offline">OFF</span> : null}
-        {botPilot && isYou ? <span className="badge badge-pilot">PILOT</span> : null}
+        {offline ? <span className="badge badge-offline">OFF</span> : null}
+        {isPilot ? <span className="badge badge-pilot">PILOT</span> : null}
       </button>
     );
   }
@@ -81,19 +86,21 @@ export function PlayerPanel({ view, player, isCurrent, isYou, botPilot, compact,
         <span className="pp-name" title={player.name}>{player.name}</span>
         <span className="pp-badges">
           {player.isBot ? <span className="badge badge-bot">BOT</span> : null}
-          {disconnected ? <span className="badge badge-offline">OFFLINE</span> : null}
-          {botPilot && isYou ? <span className="badge badge-pilot">BOT PILOT</span> : null}
+          {offline ? <span className="badge badge-offline">OFFLINE</span> : null}
+          {isPilot ? <span className="badge badge-pilot">BOT PILOT</span> : null}
         </span>
         <span className="pp-vp" title={`${vp} of ${target} victory points.`}>
           {vp}/{target}
         </span>
       </header>
 
-      <div className="pp-meter" aria-hidden="true">
-        {Array.from({ length: 12 }).map((_, i) => {
-          const filled = i < Math.round(pct * 12);
-          return <span key={i} className={`meter-seg${filled ? ' is-filled' : ''}${i === Math.min(11, target - 1) ? ' is-target' : ''}`} />;
-        })}
+      <div className={`pp-meter${segments > 14 ? ' is-dense' : ''}`} aria-hidden="true">
+        {Array.from({ length: segments }).map((_, i) => (
+          <span
+            key={i}
+            className={`meter-seg${i < filled ? ' is-filled' : ''}${i === segments - 1 ? ' is-target' : ''}`}
+          />
+        ))}
       </div>
 
       <div className="pp-chips">

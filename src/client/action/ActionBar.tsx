@@ -80,15 +80,17 @@ export function ActionBar(props: ActionBarProps): JSX.Element {
     const road = pending.type === 'build' ? pending.kind === 'road' : pending.choice === 'road';
     const city = pending.type === 'build' && pending.kind === 'city';
     const robberCard = pending.type === 'card' && pending.choice === 'robber';
+    // Only a card hands out a free piece. A paid build is just a build.
+    const granted = pending.type === 'card';
     const prompt = robberCard
       ? selection?.kind === 'hex'
         ? 'Choose who to steal from.'
         : 'Choose a hex for the robber.'
       : road
-        ? 'Choose an edge for the free road.'
+        ? (granted ? 'Choose an edge for the free road.' : 'Choose an edge for the road.')
         : city
           ? 'Choose one of your settlements to upgrade.'
-          : 'Choose a corner for the free settlement.';
+          : (granted ? 'Choose a corner for the free settlement.' : 'Choose a corner for the settlement.');
     const banner =
       pending.type === 'card'
         ? pending.choice === 'road'

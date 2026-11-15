@@ -235,9 +235,14 @@ export interface LogEntry {
   data?: Record<string, unknown>;
 }
 
-export interface GameConfig {
+/** The config fields a client is allowed to see. No seed, ever. */
+export interface PublicGameConfig {
   playerCount: number;
   targetVp: number;
+}
+
+/** Server-side config. `seed` stays on `GameState` and never on the wire. */
+export interface GameConfig extends PublicGameConfig {
   seed: number;
 }
 
@@ -257,6 +262,8 @@ export interface GameState {
   phase: GamePhase;
   /** 1-based. Setup entries log as turn 0. */
   turn: number;
+  /** Seat that picked first in setup and takes the first play turn. */
+  firstSeat: Seat;
   currentSeat: Seat;
   setup: SetupState | null;
   board: Board;
@@ -384,6 +391,8 @@ export interface LegalMoves {
   phase: GamePhase;
   canRoll: boolean;
   canEndTurn: boolean;
+  /** True once this player has bought a card this turn. */
+  purchaseUsed: boolean;
   setupSettlements: VertexId[];
   setupRoads: EdgeId[];
   /** Set when this viewer owes a discard, even if it is not their turn. */
@@ -428,10 +437,12 @@ export interface GameView {
   gameId: string;
   version: number;
   you: Seat;
-  config: GameConfig;
+  config: PublicGameConfig;
   targetVp: number;
   phase: GamePhase;
   turn: number;
+  /** Seat that picked first in setup and takes the first play turn. */
+  firstSeat: Seat;
   currentSeat: Seat;
   setup: SetupState | null;
   board: Board;
@@ -457,6 +468,12 @@ export interface GameView {
 export interface CreateGameOptions {
   playerCount: number;
   seed: number;
+  /**
+   * Public game id. Defaults to `lorac-${seed}-${playerCount}`, which the
+   * balance simulator relies on for deterministic bot tie-breaks. The server
+   * passes a random id so a client cannot derive the seed from it.
+   */
+  gameId?: string;
   names?: string[];
   bots?: boolean[];
   difficulties?: (BotDifficulty | null)[];

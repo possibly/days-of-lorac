@@ -139,21 +139,52 @@
   text-align: center;
 }
 
+/* Compact table talk inside the log tab. */
+.log-chat {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(160, 127, 61, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.log-chat-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+.log-chat-head .rail-subtitle { margin: 0; }
+.log-chat-count {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--ink-500);
+}
+.chat-lines.is-compact {
+  max-height: 120px;
+  gap: 3px;
+  font-size: 10.5px;
+}
+.chat-form.is-compact input { height: 28px; font-size: 11px; }
+.chat-form.is-compact .btn { min-height: 28px; }
+
 .game-body {
   flex: 1;
   min-height: 0;
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr) 304px;
-  gap: 12px;
-  padding: 12px;
+  gap: 10px;
+  padding: 10px;
 }
 
 .center-column {
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) 64px 268px;
-  gap: 12px;
+  /* Board first: the hand row and the action bar are trimmed to give it
+     height, because the board is height-bound and width-rich. */
+  grid-template-rows: minmax(0, 1fr) 56px 244px;
+  gap: 10px;
   position: relative;
 }
 .center-column > .seat-ribbon-wrap { display: none; }
@@ -180,7 +211,7 @@
 }
 .board-mat {
   position: absolute;
-  inset: 7px;
+  inset: 5px;
   border: 1px solid rgba(201, 167, 95, 0.24);
   border-radius: 3px;
   pointer-events: none;
@@ -188,9 +219,9 @@
 }
 .board-svg {
   position: absolute;
-  inset: 8px;
-  width: calc(100% - 16px);
-  height: calc(100% - 16px);
+  inset: 6px;
+  width: calc(100% - 12px);
+  height: calc(100% - 12px);
   display: block;
 }
 
@@ -237,16 +268,16 @@
 
 .board-talk {
   position: absolute;
-  top: 12px;
-  right: 12px;
-  max-width: 46%;
-  padding: 5px 9px;
+  top: 10px;
+  right: 10px;
+  max-width: 38%;
+  padding: 4px 8px;
   border: 1px solid rgba(201, 167, 95, 0.55);
   border-radius: 3px;
   background: rgba(246, 237, 216, 0.92);
   color: var(--ink-900);
-  font-size: 11px;
-  line-height: 1.35;
+  font-size: 10.5px;
+  line-height: 1.3;
   box-shadow: 0 6px 12px -10px rgba(0, 0, 0, 0.8);
   z-index: 3;
 }
@@ -308,12 +339,12 @@
 /* ---------- action bar ---------- */
 
 .action-bar {
-  min-height: 64px;
+  min-height: 56px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 8px 14px;
+  gap: 10px;
+  padding: 6px 12px;
   border: 1px solid var(--brass);
   border-radius: 4px;
   background:
@@ -612,19 +643,20 @@
   }
   .ledger-rail { display: none; }
   .center-column {
-    grid-template-rows: 56px minmax(0, 1fr) 60px 204px;
+    grid-template-rows: 50px minmax(0, 1fr) 54px 182px;
     gap: 8px;
     flex: 1;
     min-height: 0;
   }
   .center-column > .seat-ribbon-wrap { display: block; }
-  .board-mat { inset: 5px; }
-  .board-svg { inset: 6px; width: calc(100% - 12px); height: calc(100% - 12px); }
-  .dice-tray { width: 82px; height: 42px; top: 8px; left: 8px; gap: 4px; }
-  .die { width: 19px; height: 19px; }
-  .board-talk { font-size: 10px; max-width: 50%; padding: 4px 7px; top: 8px; right: 8px; }
-  .action-bar { min-height: 60px; padding: 6px 10px; }
+  .board-mat { inset: 4px; }
+  .board-svg { inset: 5px; width: calc(100% - 10px); height: calc(100% - 10px); }
+  .dice-tray { width: 78px; height: 38px; top: 7px; left: 7px; gap: 4px; }
+  .die { width: 17px; height: 17px; }
+  .board-talk { font-size: 10px; max-width: 42%; padding: 3px 6px; top: 7px; right: 7px; }
+  .action-bar { min-height: 54px; padding: 5px 9px; }
   .prompt-line { font-size: 12px; }
+  .seat-chip { min-height: 46px; }
   .supply-rail {
     position: fixed;
     top: 52px;
@@ -647,12 +679,12 @@
     border: none;
     z-index: 50;
   }
-  .toasts { bottom: 190px; }
+  .toasts { bottom: 196px; }
   .board-a11y { left: 8px; bottom: 6px; }
   .target-list { max-height: 120px; }
 }
 
 @media (max-height: 780px) and (min-width: 1181px) {
-  .center-column { grid-template-rows: minmax(0, 1fr) 60px 210px; }
-  .toasts { bottom: 232px; }
+  .center-column { grid-template-rows: minmax(0, 1fr) 54px 208px; }
+  .toasts { bottom: 224px; }
 }

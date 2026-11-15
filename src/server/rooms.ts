@@ -215,6 +215,18 @@ export function connectedMap(room: Room): Partial<Record<Seat, boolean>> {
   return map;
 }
 
+/**
+ * Human seats a bot is flying right now. Seat order, never bots: a bot seat is
+ * a bot all the time, which the client already knows from `players[].isBot`.
+ */
+export function pilotSeats(room: Room): Seat[] {
+  const seats: Seat[] = [];
+  for (const slot of occupiedSlots(room)) {
+    if (!slot.isBot && slot.takeover) seats.push(slot.seat);
+  }
+  return seats;
+}
+
 export function buildLobbyView(room: Room): LobbyView {
   const players: LobbyPlayer[] = occupiedSlots(room).map((slot) => ({
     seat: slot.seat,

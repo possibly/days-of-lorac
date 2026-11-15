@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { viewFor } from '../index.js';
+import { createGame, viewFor } from '../index.js';
 import { act, actionGame, newGame, patch, setResources, setupGame } from './helpers.js';
 
 function findUndefined(value: unknown, path = 'view'): string | null {
@@ -108,24 +108,26 @@ describe('viewFor', () => {
     expect(roundTrip.market).toEqual(view.market);
     expect(roundTrip.players[0]?.hand).toEqual(view.players[0]?.hand);
     expect(roundTrip.board.hexes).toHaveLength(19);
-    expect(roundTrip.targetVp).toBe(state.config.targetVp);
+      expect(roundTrip.targetVp).toBe(state.config.targetVp);
+      expect(roundTrip.config).toEqual({ playerCount: 4, targetVp: state.config.targetVp });
     expect(roundTrip.legal.buyable.length).toBeGreaterThan(0);
   });
 
   it('exposes the setup state, pending vertex and setup targets', () => {
     const state = newGame(4, 406);
-    const view = viewFor(state, 0);
+    const seat = state.currentSeat;
+    const view = viewFor(state, seat);
     expect(view.setup?.step).toBe('settlement');
     expect(view.legal.setupSettlements.length).toBeGreaterThan(0);
 
     const vertex = view.legal.setupSettlements[0] as string;
-    const placed = act(state, 0, { type: 'setupSettlement', vertex });
-    const afterView = viewFor(placed, 0);
+    const placed = act(state, seat, { type: 'setupSettlement', vertex });
+    const afterView = viewFor(placed, seat);
     expect(afterView.setup?.pendingVertex).toBe(vertex);
     expect(afterView.setup?.step).toBe('road');
     expect(afterView.legal.setupRoads.length).toBeGreaterThan(0);
     // Other seats never receive setup targets.
-    expect(viewFor(placed, 1).legal.setupRoads).toEqual([]);
+    expect(viewFor(placed, (seat + 1) % 4).legal.setupRoads).toEqual([]);
   });
 
   it('reports a finished game view with winner and empty legal moves', () => {
@@ -140,5 +142,36 @@ describe('viewFor', () => {
     expect(view.legal.canEndTurn).toBe(false);
     expect(view.legal.canRoll).toBe(false);
     expect(view.legal.isTurn).toBe(false);
+  });
+
+  it('never puts the seed on the wire, in config or in log data', () => {
+    const state = newGame(4, 408);
+    expect(state.config.seed).toBe(408);
+    expect(state.gameId).toBe('lorac-408-4');
+
+    for (const seat of [0, 1, 2, 3]) {
+      const view = viewFor(state, seat);
+      expect(view.config).toEqual({ playerCount: 4, targetVp: state.config.targetVp });
+      expect(view.config).not.toHaveProperty('seed');
+      const serialized = JSON.stringify(view);
+      expect(serialized).not.toContain('"seed"');
+      for (const entry of view.log) {
+        expect(entry.data?.seed).toBeUndefined();
+        expect(Object.keys(entry.data ?? {})).not.toContain('seed');
+      }
+    }
+
+    // The log still says who picks first, which is all a client needs.
+    const opener = state.log[0];
+    expect(opener?.data?.firstSeat).toBe(state.firstSeat);
+    expect(opener?.text).toContain('picks first');
+  });
+
+  it('honours an explicit public gameId without touching the state seed', () => {
+    const state = createGame({ playerCount: 3, seed: 409, gameId: 'room-1234' });
+    expect(state.gameId).toBe('room-1234');
+    expect(state.config.seed).toBe(409);
+    expect(viewFor(state, 0).gameId).toBe('room-1234');
+    expect(viewFor(state, 0).config).not.toHaveProperty('seed');
   });
 });

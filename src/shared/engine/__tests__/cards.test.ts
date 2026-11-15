@@ -365,8 +365,14 @@ describe('charters and purchases', () => {
 
   it('lists every charter and pile exactly once with printed copy counts', () => {
     const state = actionGame(4, 264);
+    // Piles equal printed copies, summed. Deriving the total keeps the test
+    // honest through balancing passes that change a copy count.
+    const printed = Object.keys(state.market).reduce(
+      (sum, id) => sum + (CARD_BY_ID.get(id)?.copies ?? 0),
+      0,
+    );
     const counts = Object.values(state.market).reduce((sum, count) => sum + count, 0);
-    expect(counts).toBe(70);
+    expect(counts).toBe(printed);
     for (const card of CHARTER_CARDS) expect(state.market[card.id]).toBe(card.copies);
     expect(CARD_BY_ID.get('quay-deed')?.vp).toBe(1);
     expect(CARD_BY_ID.get('fleet-charter')?.vp).toBe(2);

@@ -424,6 +424,26 @@
   font-size: 11px;
   color: var(--ink-500);
 }
+.host-note {
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-700);
+  border-left: 2px solid var(--gold-600);
+  padding-left: 7px;
+}
+.copy-note {
+  margin: -4px 0 10px;
+  padding: 6px 10px;
+  border: 1px solid rgba(160, 127, 61, 0.45);
+  border-left-width: 3px;
+  border-radius: 3px;
+  background: rgba(246, 237, 216, 0.75);
+  font-size: 11px;
+  color: var(--ink-700);
+}
+.copy-note.is-copied { border-left-color: var(--ok); }
+.copy-note.is-manual, .copy-note.is-failed { border-left-color: var(--error); color: var(--error); }
 .invite-field {
   display: flex;
   flex-direction: column;
@@ -441,6 +461,15 @@
   background: rgba(255, 253, 245, 0.7);
   font-family: var(--mono);
   font-size: 11px;
+}
+.invite-field input.invite-link { user-select: all; cursor: text; }
+.invite-field input.invite-link::selection { background: var(--gold-300); color: var(--ink-900); }
+.invite-hint {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 10px;
+  color: var(--ink-500);
+  line-height: 1.35;
 }
 .lobby-chat {
   padding: 14px;

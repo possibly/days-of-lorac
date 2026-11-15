@@ -1,101 +1,124 @@
 # Days of Lorac
 
-Browser board game: a Catan-style island economy plus a Dominion-style personal deck. 2-4
-players, bots, online rooms over Tailscale, one Node process with in-memory state.
+A browser board game: the island economy of Settlers of Catan with a personal
+deck of guild cards layered on top. Two to four players, bots at three
+difficulties, online rooms over a tailnet, one Node process with in-memory
+state.
 
-This repo is at the scaffold stage. What works today: the build, the static server, the health
-endpoint, the WebSocket handshake, and a title screen with a live connection indicator. The
-engine, rooms, and actual gameplay are next.
+Build an outpost on good numbers, roll for production, spend resources on roads
+and cities, and buy cards that turn your economy into victory points. The board
+gives you goods. The deck decides what those goods become.
 
-Design docs live in `docs/`. Read `PROJECT-BRIEF.md` before changing anything structural.
+## Quick start
 
-## Requirements
+```bash
+npm install
+npm run build
+npm start
+```
 
-- Node 24 (`node -v` must print v24.x)
-- npm 11+
+Open:
+
+- Local: http://localhost:8096
+- Tailnet: http://100.69.138.118:8096
+
+The server binds `0.0.0.0:8096`, so another device on the tailnet can join with
+the second URL. If macOS asks whether Node may accept incoming connections,
+allow it.
+
+For development with hot reload:
+
+```bash
+npm run dev
+```
+
+Open http://localhost:5173. Vite proxies `/api` and `/ws` to the game server on
+8096.
+
+## Play
+
+- **Play vs bots**: two clicks from the title. Four seats, normal bots.
+- **Create room**: a four-letter room code and an invite link. Add bots to open
+  seats, or wait for friends.
+- **Join with code**: paste the code or open the shared `?room=CODE` link.
+- **Reconnect**: refresh the page. The browser stores a per-room token and
+  resumes your seat. If you are gone for 45 seconds in a game, a bot takes over
+  until you return.
+
+A game runs about 25-35 minutes. Victory target is 14 points with four players,
+16 with three, 18 with two. Settlements score 1, cities 2, the two awards 2
+each, and charters 1 or 2. One market purchase per turn. The robber still
+matters.
 
 ## Commands
 
 | Command | What it does |
 | --- | --- |
 | `npm install` | Install dependencies. |
-| `npm run dev` | Runs the game server (`tsx watch`) and Vite together. Open http://localhost:5173. |
-| `npm run build` | `tsc --noEmit` then Vite build to `dist/client`. |
-| `npm start` | Runs the game server against `dist/client` on `0.0.0.0:8096`. Run `npm run build` first. |
-| `npm test` | `vitest run`. |
-| `npm run test:watch` | Vitest in watch mode. |
-| `npm run check` | Typecheck only (`tsc --noEmit`). |
-| `npm run preview` | Build then start, for checking the production bundle. |
+| `npm run dev` | Game server plus Vite, hot reload on :5173. |
+| `npm run build` | Typecheck, then build the client into `dist/client`. |
+| `npm start` | Serve the built client and WebSocket on `0.0.0.0:8096`. |
+| `npm test` | Engine, rooms, bots, and protocol tests. |
+| `npm run check` | TypeScript only. |
+| `npm run sim -- 50` | Headless bot balance run: 50 games per matchup. |
+| `npm run sim -- 100 --players 4 --difficulty all` | Full balance sweep. |
+| `npm run preview` | Build, then start. |
 
-## Ports and URLs
+Other useful health checks:
 
-- Game server: `0.0.0.0:8096` (`PORT` overrides). Tailnet: **http://100.69.138.118:8096**
-- Vite dev server: `localhost:5173`, proxying `/api` and `/ws` to `127.0.0.1:8096`.
-- WebSocket endpoint: `/ws`.
-- Health check: `GET /api/health` returns JSON with version, uptime, socket count, and whether
-  `dist/client` exists.
+```bash
+curl -s localhost:8096/api/health
+curl -s localhost:8096/api/rooms/ABCD
+```
 
-`TAILNET_IP` and `HOST` are read at startup. The server tries `tailscale ip -4` for the tailnet
-address and falls back to the known IP. Do not use ports 8080, 8787, or 8090; other projects own
-them.
+The server keeps rooms in memory. Restarting it ends every open game. That is
+deliberate for a tailnet game with no database.
+
+## Bots
+
+- **Deckhand** (easy): loose play, weaker purchases, still finishes.
+- **Factor** (normal): the default. Scores builds, plays its deck, trades,
+  uses ports, and races the endgame.
+- **Guildmaster** (hard): stronger purchase lookahead, better denial, tighter
+  charter timing.
+
+All three use the same policy with different weights. A full game is simulated
+in `npm run sim`; the report includes win rates, game length, VP split, and
+which market piles actually sell.
 
 ## Layout
 
 ```
-src/shared/     engine, types, card data, protocol types, view filtering (pure TS, no DOM/Node)
-src/shared/version.ts        GAME_VERSION, the single version source
-src/shared/__tests__/        vitest specs for shared code
-src/server/     index.ts (http + routes), static.ts, ws.ts, config.ts
-src/client/     index.html, main.tsx, App.tsx, styles.css
-dist/client/    build output (gitignored)
+src/shared/       types, constants, card data, protocol, pure engine
+src/shared/engine board graph, setup, actions, cards, awards, legal moves, view
+src/server/       HTTP, WebSocket rooms, reconnect, bot runner
+src/server/bots/  bot policy and balance simulator
+src/client/       React app, SVG board, hand, market, trade, modals
+docs/             game design, card manifest, UI spec, implementation contracts
+scripts/          balance CLI
 ```
 
-## Importing shared code
+`@shared/*` maps to `src/shared/*` in TypeScript, Vite, and Vitest. Shared code
+is pure: no DOM, no Node imports, no dates, no `Math.random`. Randomness comes
+from a seeded PRNG stored in the game state, so a seed plus an action list
+replays exactly.
 
-`@shared/*` maps to `src/shared/*` and works in all three places that matter, with no extra
-loader:
-
-- `tsconfig.json` `paths` (typecheck, and tsx reads it at runtime for the server),
-- `vite.config.ts` `resolve.alias` (client bundling),
-- `vitest.config.ts` `resolve.alias` (tests).
-
-Rules:
-
-- Import shared code as `@shared/version`, `@shared/engine`, etc. Never as `../../shared/...`.
-  It keeps the server, client, and tests on one specifier, and Vite chunking stays predictable.
-- Relative imports inside a layer are fine (`./ws.js`). Server-relative imports use the `.js`
-  extension, node ESM style; TS maps that to the `.ts` file under `moduleResolution: Bundler`.
-- `src/shared/` must stay pure: no `node:` imports, no DOM, no `process`. The server, the client,
-  and the headless balance simulator all import it.
-
-## Verify a checkout
+## Tests and balance
 
 ```bash
-npm install
-npm run check          # typecheck
-npm test               # unit tests
-npm run build          # writes dist/client
-npm start &            # binds 0.0.0.0:8096
-curl -s localhost:8096/api/health   # {"ok":true,"version":"0.1.0",...}
-curl -s -o /dev/null -w '%{http_code}\n' localhost:8096/     # 200
-kill %1
+npm test
+npm run check
+npm run sim -- 50
 ```
 
-Dev flow: `npm run dev`, open http://localhost:5173. The footer should read "Server connected".
-If it says "Server offline", the game server is not up on 8096 and the Vite proxy has nowhere to
-send `/ws`.
+The test suite covers the board graph, setup snake, production, the seven,
+robber, every card and fallback, trades, ports, awards and ties, victory
+mid-card, hidden-information filtering, room lifecycle, reconnect, and full
+bot games. The simulator rejects any illegal action and fails on a stall.
 
-Without `dist/client`, the server still starts and answers `/` with a page telling you to run
-`npm run build` or `npm run dev`. That is intentional: dev and production share the process.
+Design docs:
 
-## Notes for the next agents
-
-- Room codes, seats, the bot runner, and the game loop go in `src/server/rooms.ts` and friends.
-  `src/server/index.ts` and `src/server/ws.ts` each carry a TODO block with the intended shape.
-- The WebSocket layer currently only greets, pings, and rejects unknown message types. It knows
-  nothing about rooms. Put protocol types in `src/shared/protocol.ts` before wiring rooms so the
-  client and server share one definition.
-- Bump the version in exactly one place, `src/shared/version.ts`, and a test fails if it drifts
-  from `package.json`.
-- Keep `GAME_VERSION` in the WebSocket hello. The client already warns when server and client
-  versions disagree, which saves you from stale-tab bugs during multiplayer testing.
+- `docs/GAME-DESIGN.md`: rules and economy.
+- `docs/CARDS.md`: card manifest and balance arithmetic.
+- `docs/UI-SPEC.md`: screen layout and interaction spec.
+- `docs/CONTRACTS.md`: engine, protocol, and file-ownership contract.

@@ -163,6 +163,25 @@ function stateOf(manager: RoomManager, code: string): Room {
   return room;
 }
 
+/**
+ * Setup order starts at the seeded first seat, which may be a bot. Advance the
+ * fake clock until a seat the test can act for is current.
+ */
+function advanceToActor(
+  context: { manager: RoomManager; clock: FakeClock },
+  code: string,
+  actors: Map<Seat, FakeConn>,
+): number {
+  for (let step = 0; step < 32; step += 1) {
+    const state = stateOf(context.manager, code).state;
+    if (!state) throw new Error('no state');
+    if (state.phase !== 'setup') return state.currentSeat;
+    if (actors.has(state.currentSeat)) return state.currentSeat;
+    context.clock.advance(600);
+  }
+  throw new Error('no seat a test can act for became current');
+}
+
 function viewOf(conn: FakeConn): GameView {
   const game = conn.last('game');
   if (!game) throw new Error('no game view');
@@ -317,7 +336,7 @@ describe('lobby', () => {
     const hostLobby = host.last('lobby');
     expect(hostLobby).not.toBeNull();
     expect(hostLobby?.room.status).toBe('lobby');
-    expect(hostLobby?.room.targetVp).toBe(14);
+    expect(hostLobby?.room.targetVp).toBe(16);
     expect(hostLobby?.you).toBe(0);
     expect(hostLobby?.room.players[0]?.host).toBe(true);
     const code = hostLobby?.room.code ?? '';
@@ -510,39 +529,52 @@ describe('actions', () => {
     const [host, guest] = conns as [FakeConn, FakeConn];
     context.manager.startGame(host);
 
-    const room = stateOf(context.manager, code);
-    const state = room.state;
-    if (!state) throw new Error('no state');
+    // The seeded first seat may be a bot; let any bot pick before a human does.
+    const actors = new Map<Seat, FakeConn>([
+      [0, host],
+      [1, guest],
+    ]);
+    const actingSeat = advanceToActor(context, code, actors);
+    const acting = actors.get(actingSeat);
+    const watchingSeat = actingSeat === 0 ? 1 : 0;
+    const watching = watchingSeat === 0 ? host : guest;
+    if (!acting) throw new Error(`seat ${actingSeat} has no connection`);
 
-    // Seat 1 is out of turn; only seat 1 gets the error, nobody gets a view.
-    const hostGamesBefore = host.count('game');
-    const guestGamesBefore = guest.count('game');
-    const wrongSeat = legalMoves(state, 0).setupSettlements[0];
+    const state = stateOf(context.manager, code).state;
+    if (!state) throw new Error('no state');
+    expect(state.currentSeat).toBe(actingSeat);
+
+    // The seat that is not on turn is refused; only it hears about it, and
+    // nobody gets a view.
+    const actingGamesBefore = acting.count('game');
+    const watchingGamesBefore = watching.count('game');
+    const wrongSeat = legalMoves(state, actingSeat).setupSettlements[0];
     if (!wrongSeat) throw new Error('no legal setup settlement');
-    context.manager.action(guest, { type: 'setupSettlement', vertex: wrongSeat }, 7);
-    expect(guest.last('error')?.code).toBe('NOT_YOUR_TURN');
-    expect(guest.last('error')?.seq).toBe(7);
-    expect(guest.count('game')).toBe(guestGamesBefore);
-    expect(host.count('game')).toBe(hostGamesBefore);
+    context.manager.action(watching, { type: 'setupSettlement', vertex: wrongSeat }, 7);
+    expect(watching.last('error')?.code).toBe('NOT_YOUR_TURN');
+    expect(watching.last('error')?.seq).toBe(7);
+    expect(watching.count('game')).toBe(watchingGamesBefore);
+    expect(acting.count('game')).toBe(actingGamesBefore);
 
     // The right seat's action reaches both humans, each with its own view.
-    const legal = legalMoves(state, 0);
+    const versionBefore = state.version;
+    const legal = legalMoves(state, actingSeat);
     const vertex = legal.setupSettlements[0];
     if (!vertex) throw new Error('no setup vertex');
-    context.manager.action(host, { type: 'setupSettlement', vertex }, 8);
-    expect(host.last('error')).toBeNull();
-    expect(host.count('game')).toBe(hostGamesBefore + 1);
-    expect(guest.count('game')).toBe(guestGamesBefore + 1);
-    expect(stateOf(context.manager, code).state?.version).toBe(1);
-    expect(host.last('game')?.view.legal.seat).toBe(0);
-    expect(guest.last('game')?.view.legal.seat).toBe(1);
+    context.manager.action(acting, { type: 'setupSettlement', vertex }, 8);
+    expect(acting.last('error')).toBeNull();
+    expect(acting.count('game')).toBe(actingGamesBefore + 1);
+    expect(watching.count('game')).toBe(watchingGamesBefore + 1);
+    expect(stateOf(context.manager, code).state?.version).toBe(versionBefore + 1);
+    expect(acting.last('game')?.view.legal.seat).toBe(actingSeat);
+    expect(watching.last('game')?.view.legal.seat).toBe(watchingSeat);
 
     // Unknown action types and garbage get friendly errors, not crashes.
-    context.manager.action(host, { type: 'bogus' } as unknown as GameAction, 9);
-    expect(host.last('error')?.code).toBe('INVALID_ACTION');
-    context.manager.action(host, null as unknown as GameAction, 10);
-    expect(host.last('error')?.code).toBe('INTERNAL');
-    expect(stateOf(context.manager, code).state?.version).toBe(1);
+    context.manager.action(acting, { type: 'bogus' } as unknown as GameAction, 9);
+    expect(acting.last('error')?.code).toBe('INVALID_ACTION');
+    context.manager.action(acting, null as unknown as GameAction, 10);
+    expect(acting.last('error')?.code).toBe('INTERNAL');
+    expect(stateOf(context.manager, code).state?.version).toBe(versionBefore + 1);
   });
 
   it('refuses actions from a spectator socket', () => {
@@ -591,18 +623,39 @@ describe('bots', () => {
     context.manager.quickPlay(host, { name: 'Ada', seats: 4, difficulty: 'normal' });
     const code = host.last('game')?.roomCode ?? '';
 
-    // The human opens: settlement then road. Bot seat 1 is next.
-    const room = stateOf(context.manager, code);
-    const state = room.state;
+    // The seeded first seat can be a bot. Let those pick, then the human takes
+    // its setup picks until the snake hands the table to a bot. The human can
+    // sit on both sides of the snake, so this may be two pairs in a row.
+    advanceToActor(context, code, new Map<Seat, FakeConn>([[0, host]]));
+    const state = stateOf(context.manager, code).state;
     if (!state) throw new Error('no state');
+    expect(state.currentSeat).toBe(0);
     const open = legalMoves(state, 0);
     const vertex = open.setupSettlements[0];
     if (!vertex) throw new Error('no setup vertex');
     context.manager.action(host, { type: 'setupSettlement', vertex });
     expect(context.clock.pending).toBe(0);
-    const road = legalMoves(stateOf(context.manager, code).state!, 0).setupRoads[0];
-    if (!road) throw new Error('no setup road');
-    context.manager.action(host, { type: 'setupRoad', edge: road });
+
+    let placed = 1;
+    while (placed < 4) {
+      const now = stateOf(context.manager, code).state;
+      if (!now || now.phase !== 'setup' || now.currentSeat !== 0) break;
+      const legal = legalMoves(now, 0);
+      const edge = legal.setupRoads[0];
+      if (!edge) throw new Error('no setup road');
+      context.manager.action(host, { type: 'setupRoad', edge });
+      placed += 1;
+      const after = stateOf(context.manager, code).state;
+      // Still the human's turn means no bot timer; a bot seat means exactly one.
+      expect(context.clock.pending).toBe(after?.currentSeat === 0 ? 0 : 1);
+      if (after?.currentSeat !== 0) break;
+      const next = legalMoves(after, 0).setupSettlements[0];
+      if (!next) throw new Error('no second setup settlement');
+      context.manager.action(host, { type: 'setupSettlement', vertex: next });
+      placed += 1;
+      expect(context.clock.pending).toBe(0);
+    }
+    expect(stateOf(context.manager, code).state?.currentSeat).not.toBe(0);
     expect(context.clock.pending).toBe(1);
 
     const versionBefore = stateOf(context.manager, code).state?.version;
@@ -620,7 +673,11 @@ describe('bots', () => {
     // A rematch clears timers and starts fresh instead of acting on the old one.
     context.manager.rematch(host);
     expect(stateOf(context.manager, code).state?.phase).toBe('setup');
-    expect(context.clock.pending).toBe(0);
+    // Only the new game's own timer can be armed, never one from the old board.
+    expect(context.clock.pending).toBeLessThanOrEqual(1);
+    const rematchVersion = stateOf(context.manager, code).state?.version;
+    context.clock.advance(499);
+    expect(stateOf(context.manager, code).state?.version).toBe(rematchVersion);
   });
 
   it('lets bots discard on their own but waits for humans', () => {

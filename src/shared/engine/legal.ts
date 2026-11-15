@@ -286,6 +286,7 @@ export function legalMoves(state: GameState, seat: Seat): LegalMoves {
     phase: state.phase,
     canRoll: state.phase === 'roll' && active && !state.turnFlags.rolled,
     canEndTurn: actionPhase,
+    purchaseUsed: state.turnFlags.purchased,
     setupSettlements,
     setupRoads,
     discard: inQueue ? { required: state.discardRequired[seat] ?? 0 } : null,

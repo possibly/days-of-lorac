@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { BankTradeOption, CardInstance, GameAction, GameView, PartialResources, Resource, Seat } from '@shared/types';
+import type { ChatMessage } from '@shared/protocol';
 import { getCard } from '@shared/cards';
 import { LARGEST_EXPEDITION_MIN } from '@shared/constants';
 import type { LinkState } from '../net/socket';
@@ -29,6 +30,10 @@ export interface GameScreenProps {
   connected: boolean;
   link: LinkState;
   botPilot: boolean;
+  /** Seats a bot is flying, from the socket snapshot. */
+  pilotSeats: number[];
+  chats: ChatMessage[];
+  onChat: (text: string) => void;
   roomCode: string | null;
   soundOn: boolean;
   letters: boolean;
@@ -47,6 +52,9 @@ export function GameScreen({
   connected,
   link,
   botPilot,
+  pilotSeats,
+  chats,
+  onChat,
   roomCode,
   soundOn,
   letters,
@@ -74,13 +82,14 @@ export function GameScreen({
   const [floaters, setFloaters] = useState<Floater[]>([]);
   const [flashHexes, setFlashHexes] = useState<string[]>([]);
   const [boughtStub, setBoughtStub] = useState<{ name: string; open: boolean } | null>(null);
-  const [purchase, setPurchase] = useState<{ gameId: string; turn: number; used: boolean }>({ gameId: view.gameId, turn: view.turn, used: false });
   const [overOpen, setOverOpen] = useState(view.phase === 'gameOver');
   const [reducedMotion, setReducedMotion] = useState(false);
 
-  const marketRef = useRef(view.market);
   const diceRef = useRef('');
-  const cueRef = useRef<{ version: number; roads: number; buildings: number; played: number; market: number; awards: string; winner: number | null } | null>(null);
+  const floaterTimer = useRef<number | undefined>(undefined);
+  const stubTimer = useRef<number | undefined>(undefined);
+  const purchasesRef = useRef({ gameId: view.gameId, seat: view.you, count: view.players[view.you]?.purchases ?? 0 });
+  const cueRef = useRef<{ version: number; roads: number; buildings: number; played: number; awards: string; winner: number | null; dice: string; purchases: number } | null>(null);
   const youView = view.players[view.you];
   const hand = youView?.hand ?? [];
 
@@ -93,46 +102,57 @@ export function GameScreen({
     return () => media.removeEventListener('change', sync);
   }, []);
 
-  // ----- purchase tracking (GameView has no turnFlags.purchased) -----------
-  useEffect(() => {
-    const previous = marketRef.current;
-    marketRef.current = view.market;
-    const decreased = Object.keys(view.market).some((key) => (view.market[key] ?? 0) < (previous[key] ?? 0));
-    if (!decreased) return;
-    const lowered = Object.keys(view.market).find((key) => (view.market[key] ?? 0) < (previous[key] ?? 0));
-    if (lowered) {
-      try {
-        const def = getCard(lowered);
-        setBoughtStub({ name: def.name, open: true });
-        window.setTimeout(() => setBoughtStub(null), 1600);
-      } catch {
-        // unknown id: no stub
-      }
-    }
-    setPurchase({ gameId: view.gameId, turn: view.turn, used: true });
-  }, [view.market, view.turn, view.gameId]);
+  // ----- purchase tracking -------------------------------------------------
+  // The engine reports this directly once per turn, so no guessing from market
+  // stock. Another seat's purchase never flips our chip.
+  const purchaseUsed = Boolean(view.legal.purchaseUsed);
 
+  // The bought-card stub belongs to our own purchase counter, not to a pile
+  // losing a copy. The buy log line carries the defId for the label.
   useEffect(() => {
-    if (purchase.gameId !== view.gameId || purchase.turn !== view.turn) {
-      setPurchase({ gameId: view.gameId, turn: view.turn, used: false });
+    const count = youView?.purchases ?? 0;
+    const previous = purchasesRef.current;
+    if (previous.gameId !== view.gameId || previous.seat !== view.you) {
+      purchasesRef.current = { gameId: view.gameId, seat: view.you, count };
+      return;
     }
-  }, [view.gameId, view.turn, purchase.gameId, purchase.turn]);
+    if (count <= previous.count) {
+      if (count < previous.count) purchasesRef.current = { ...previous, count };
+      return;
+    }
+    purchasesRef.current = { ...previous, count };
+    const entry = [...view.log].reverse().find((item) => item.kind === 'buy' && item.seat === view.you);
+    const rawId = entry?.data?.defId;
+    const def = typeof rawId === 'string' ? safeCard(rawId) : null;
+    setBoughtStub({ name: def?.name ?? 'a card', open: true });
+    if (stubTimer.current !== undefined) window.clearTimeout(stubTimer.current);
+    stubTimer.current = window.setTimeout(() => setBoughtStub(null), 1800);
+  }, [youView?.purchases, view.gameId, view.you, view.log]);
 
-  const purchaseUsed = purchase.gameId === view.gameId && purchase.turn === view.turn && purchase.used;
+  useEffect(() => () => {
+    if (stubTimer.current !== undefined) window.clearTimeout(stubTimer.current);
+    if (floaterTimer.current !== undefined) window.clearTimeout(floaterTimer.current);
+  }, []);
 
   // ----- production feedback ----------------------------------------------
+  // Keyed on the roll itself. `version` moves on every action, so keying on it
+  // replayed the floaters and the dice tumble after every build or buy.
   useEffect(() => {
-    if (!view.dice) return undefined;
-    const key = `${view.gameId}:${view.version}:${view.dice.total}`;
-    if (key === diceRef.current) return undefined;
+    const dice = view.dice;
+    if (!dice) {
+      diceRef.current = '';
+      return;
+    }
+    const key = `${view.gameId}:${view.turn}:${dice.die1}:${dice.die2}`;
+    if (key === diceRef.current) return;
     diceRef.current = key;
     const index = indexBoard(view.board);
     const list: Floater[] = [];
     const blocked: string[] = [];
     const paying: string[] = [];
-    if (view.dice.total !== 7) {
+    if (dice.total !== 7) {
       for (const hex of view.board.hexes) {
-        if (hex.token !== view.dice.total) continue;
+        if (hex.token !== dice.total) continue;
         if (hex.id === view.robberHex) {
           blocked.push(hex.id);
           list.push({
@@ -163,23 +183,26 @@ export function GameScreen({
     }
     setFloaters(list);
     setFlashHexes([...blocked, ...paying]);
-    const timer = window.setTimeout(() => {
+    if (floaterTimer.current !== undefined) window.clearTimeout(floaterTimer.current);
+    floaterTimer.current = window.setTimeout(() => {
       setFloaters([]);
       setFlashHexes([]);
     }, 1100);
-    return () => window.clearTimeout(timer);
   }, [view]);
 
   // ----- sound cues --------------------------------------------------------
+  // One cue per real change: our own purchase, any placement, any card, an
+  // award, the win, and a roll only when new dice land.
   useEffect(() => {
     const roads = Object.keys(view.roads).length;
     const buildings = Object.keys(view.buildings).length;
     const played = view.players.reduce((sum, player) => sum + player.playedCount, 0);
-    const market = Object.values(view.market).reduce((sum, count) => sum + count, 0);
     const awards = `${view.awards.longestRoad}/${view.awards.largestExpedition}`;
     const winner = view.winner;
+    const purchases = youView?.purchases ?? 0;
+    const diceKey = view.dice ? `${view.dice.die1}:${view.dice.die2}` : '';
     const previous = cueRef.current;
-    cueRef.current = { version: view.version, roads, buildings, played, market, awards, winner };
+    cueRef.current = { version: view.version, roads, buildings, played, awards, winner, dice: diceKey, purchases };
     if (!previous || previous.version === view.version) return;
     if (winner !== null && previous.winner === null) {
       playCue('win');
@@ -189,24 +212,36 @@ export function GameScreen({
       playCue('award');
       return;
     }
+    if (diceKey !== '' && diceKey !== previous.dice) {
+      playCue('roll');
+      return;
+    }
     if (played > previous.played) {
       playCue('card');
       return;
     }
-    if (market < previous.market) {
+    if (purchases > previous.purchases) {
       playCue('buy');
       return;
     }
     if (roads > previous.roads || buildings > previous.buildings) {
       playCue('place');
+    }
+  }, [view, youView?.purchases]);
+
+  // Keep the discard sheet open while we owe a discard. Another seat's update
+  // arrives as a new view and used to close ours mid-selection.
+  const owesDiscard = Boolean(view.legal.discard);
+  const owedRef = useRef(false);
+  useEffect(() => {
+    if (!owesDiscard) {
+      if (owedRef.current) setDiscardOpen(false);
+      owedRef.current = false;
       return;
     }
-    if (view.dice && previous.version !== view.version) playCue('roll');
-  }, [view]);
-
-  useEffect(() => {
-    if (view.phase === 'discard' && view.legal.discard) setDiscardOpen(false);
-  }, [view.phase, view.legal.discard]);
+    if (!owedRef.current) setDiscardOpen(true);
+    owedRef.current = true;
+  }, [owesDiscard]);
 
   useEffect(() => {
     if (view.phase === 'gameOver') setOverOpen(true);
@@ -550,7 +585,14 @@ export function GameScreen({
           onBankTrade={(option: BankTradeOption) => send({ type: 'bankTrade', give: option.give, receive: option.receive, count: option.count })}
         />
       )
-      : <LogTab view={view} />;
+      : (
+        <LogTab
+          view={view}
+          chats={chats}
+          connected={connected}
+          onChat={onChat}
+        />
+      );
 
 
   return (
@@ -600,11 +642,11 @@ export function GameScreen({
           onPlayInspected={() => { if (inspected) play(inspected.iid); }}
           onCloseInspector={() => setInspectedIid(null)}
           letters={letters}
-          botPilot={botPilot}
+          pilotSeats={pilotSeats}
         />
 
         <main className="center-column">
-          <SeatRibbon view={view} botPilot={botPilot} expanded={expandedSeat} onExpand={setExpandedSeat} letters={letters} />
+          <SeatRibbon view={view} pilotSeats={pilotSeats} expanded={expandedSeat} onExpand={setExpandedSeat} letters={letters} />
 
           <div className="board-wrap">
             <BoardFrame

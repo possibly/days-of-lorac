@@ -10,7 +10,8 @@
  *   - check the welcome version before anything else,
  *   - resume with the stored token on every reconnect,
  *   - exponential backoff, bot-pilot flag after 45s,
- *   - hold one pending action across a drop and resend it exactly once.
+ *   - hold one pending action across a drop and resend it exactly once, only
+ *     after the resumed view proves the original send never landed.
  */
 import type {
   ChatMessage,
@@ -45,6 +46,10 @@ export interface ClientSnapshot {
   roomCode: string | null;
   you: Seat | null;
   token: string | null;
+  /** Host seat of the room, from the lobby or a game message. */
+  hostSeat: Seat | null;
+  /** Seats a bot is flying because the human dropped mid-game. */
+  pilotSeats: Seat[];
   lobby: LobbyView | null;
   game: GameView | null;
   error: WireError | null;
@@ -71,6 +76,8 @@ const INITIAL: ClientSnapshot = {
   roomCode: null,
   you: null,
   token: null,
+  hostSeat: null,
+  pilotSeats: [],
   lobby: null,
   game: null,
   error: null,
@@ -94,7 +101,11 @@ class GameClient {
   private pingTimer: number | undefined;
   private resume: { code: string; token: string } | null = null;
   private pendingAction: { message: ClientMessage; seq: number } | null = null;
-  private resent = false;
+  /**
+   * Set when `resume` went out with an unconfirmed action still held. The next
+   * view decides: a higher version means it already applied.
+   */
+  private gate: { seq: number; versionAtSend: number | null; resent: boolean } | null = null;
   private outbox: ClientMessage[] = [];
   private seq = 0;
   private disposed = false;
@@ -246,7 +257,7 @@ class GameClient {
     this.seq += 1;
     const message: ClientMessage = { type: 'action', action, seq: this.seq };
     this.pendingAction = { message, seq: this.seq };
-    this.resent = false;
+    this.gate = null;
     if (!this.transmit(message)) {
       // Held in memory; replayed after the next successful resume.
       return;
@@ -282,9 +293,14 @@ class GameClient {
     }
     const sent = this.transmit({ type: 'resume', code: target.code, token: target.token });
     this.update({ resuming: sent });
-    if (sent && this.pendingAction && !this.resent) {
-      this.resent = true;
-      this.transmit(this.pendingAction.message);
+    if (!sent) return;
+    // A lost reply and a lost send look identical from here, so never resend
+    // blind. The next view decides; only an unchanged version earns one retry.
+    if (this.pendingAction) {
+      const pending = this.pendingAction;
+      if (!this.gate || this.gate.seq !== pending.seq) {
+        this.gate = { seq: pending.seq, versionAtSend: this.snapshot.game?.version ?? null, resent: false };
+      }
     }
   }
 
@@ -293,6 +309,7 @@ class GameClient {
     if (code) clearToken(code);
     this.resume = null;
     this.pendingAction = null;
+    this.gate = null;
     this.outbox = [];
     this.update({ ...INITIAL, link: this.snapshot.link, serverVersion: this.snapshot.serverVersion, ready: this.snapshot.ready });
   }
@@ -331,25 +348,32 @@ class GameClient {
           you: message.you,
           token: message.token,
           roomCode: message.room.code,
+          hostSeat: message.room.hostSeat,
+          pilotSeats: [],
           resuming: false,
           game: message.room.status === 'lobby' ? null : this.snapshot.game,
           error: null,
         });
         this.pendingAction = null;
+        this.gate = null;
         return;
       }
       case 'game': {
         saveToken(message.roomCode, message.token, message.you);
         this.resume = { code: message.roomCode, token: message.token };
+        this.resolvePending(message.view.version);
         this.update({
           game: message.view,
           you: message.you,
           token: message.token,
           roomCode: message.roomCode,
+          hostSeat: message.hostSeat ?? this.snapshot.hostSeat ?? (this.snapshot.lobby?.hostSeat ?? null),
+          pilotSeats: Array.isArray(message.pilotSeats) ? message.pilotSeats.slice() : [],
           resuming: false,
           error: null,
         });
         this.pendingAction = null;
+        this.gate = null;
         return;
       }
       case 'error': {
@@ -361,6 +385,7 @@ class GameClient {
         if (message.seq !== undefined) error.seq = message.seq;
         if (message.seq !== undefined && this.pendingAction?.seq === message.seq) {
           this.pendingAction = null;
+          this.gate = null;
         }
         const gone = message.code === 'ROOM_NOT_FOUND' || message.code === 'NOT_IN_ROOM';
         if (gone) {
@@ -368,6 +393,7 @@ class GameClient {
           if (code) clearToken(code);
           this.resume = null;
           this.pendingAction = null;
+          this.gate = null;
           this.outbox = [];
           this.update({
             roomCode: null,
@@ -375,6 +401,8 @@ class GameClient {
             game: null,
             you: null,
             token: null,
+            hostSeat: null,
+            pilotSeats: [],
             resuming: false,
             error,
           });
@@ -392,6 +420,7 @@ class GameClient {
         if (code) clearToken(code);
         this.resume = null;
         this.pendingAction = null;
+        this.gate = null;
         this.update({
           roomClosed: message.reason,
           roomCode: null,
@@ -399,6 +428,8 @@ class GameClient {
           game: null,
           you: null,
           token: null,
+          hostSeat: null,
+          pilotSeats: [],
         });
         return;
       }
@@ -409,6 +440,21 @@ class GameClient {
       default:
         return;
     }
+  }
+
+  /**
+   * Decide what to do with an action held across a reconnect. A higher version
+   * than the one at send time means the server applied it and only the reply
+   * was lost, so the action is dropped. Otherwise it is resent exactly once.
+   */
+  private resolvePending(version: number): void {
+    const pending = this.pendingAction;
+    const gate = this.gate;
+    if (!pending || !gate || gate.seq !== pending.seq) return;
+    if (gate.versionAtSend !== null && version > gate.versionAtSend) return; // applied
+    if (gate.resent) return; // already retried once; give up quietly
+    gate.resent = true;
+    this.transmit(pending.message);
   }
 
   // ----- convenience intents ----------------------------------------------
@@ -431,6 +477,7 @@ class GameClient {
     if (code) clearToken(code);
     this.resume = null;
     this.pendingAction = null;
+    this.gate = null;
     this.update({
       ...INITIAL,
       link: this.snapshot.link,

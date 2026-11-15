@@ -135,7 +135,14 @@ export function actionPhase(state: GameState, roll = 8): GameState {
 }
 
 export function setupGame(playerCount = 4, seed = 1): GameState {
-  return finishSetup(newGame(playerCount, seed));
+  const finished = finishSetup(newGame(playerCount, seed));
+  // Action fixtures act from seat 0. Starting-seat randomisation is covered by
+  // the setup tests and the whole-game tests, which read `firstSeat`.
+  return finished.currentSeat === 0
+    ? finished
+    : patch(finished, (draft) => {
+        draft.currentSeat = 0;
+      });
 }
 
 export function actionGame(playerCount = 4, seed = 1, roll = 8): GameState {

@@ -37,14 +37,18 @@ bestBankRate(state: GameState, seat: Seat, give: Resource): number
 - Validates 2-4 players, target from `targetVpFor`.
 - Picks a board orientation from the seed (rotation 0-5, mirror 0-1) and builds
   the full graph, ports, terrain, tokens.
+- Draws a seeded `firstSeat` after the board draws, before the deck shuffles.
+  `setup.order[0]`, `firstSeat`, and the first play turn all agree.
 - Puts the robber on the desert.
-- Builds the snake setup order for the player count and sets `phase: 'setup'`.
+- Builds the snake setup order for the player count, rotated to start at
+  `firstSeat` and run clockwise.
 - Creates each player's 10-card starting deck, shuffles it with the game RNG,
-  and draws 5. Do this after the board so RNG order is stable.
+  and draws 5. Do this after the board and first-seat draw so RNG order is
+  stable.
 - `log` has a setup entry per placement, not a per-card entry.
 - `version = 0`, `turn = 0` until setup ends. When the last setup road lands:
-  `setup = null`, `phase = 'roll'`, `turn = 1`, `currentSeat = 0`, and append a
-  turn-start log entry.
+  `setup = null`, `phase = 'roll'`, `turn = 1`, `currentSeat = firstSeat`, and
+  append a turn-start log entry.
 - No starting resources. Setup settlements score 1 VP each, so refresh VP, but
   the target cannot be reached during setup.
 
@@ -85,6 +89,8 @@ bestBankRate(state: GameState, seat: Seat, give: Resource): number
 - `bankTrades`: best rate only, one entry per (give, receive) pair the player can
   afford. `count` is the rate (4, 3, or 2).
 - `buyable`: affordable, in-stock card ids, and only when `!turnFlags.purchased`.
+- `purchaseUsed` mirrors `turnFlags.purchased`, including for out-of-turn
+  viewers. The client uses this instead of diffing `market` across views.
 - `discard.required` is `floor(totalResources / 2)` when the viewer is in the
   queue. Exactly that many resources must be returned.
 - `canRespondToTrade` is true when the offer's recipient list contains the
@@ -100,15 +106,18 @@ bestBankRate(state: GameState, seat: Seat, give: Resource): number
   whether to show action controls.
 - `log` is the last 120 entries. State keeps all of them.
 - The view must be JSON-serializable and contain no `undefined` in arrays.
+- `firstSeat` is public so the UI can label the setup order and the first turn.
 
 `scorePlayer` and `longestRoadLength` are public helpers for bots, tests, and
 the UI. They must agree with `legalMoves` and `refreshDerived`.
 
 ## Rules the engine must not get wrong
 
-- **Setup snake.** 4p: 1,2,3,4,4,3,2,1. 3p: 1,2,3,3,2,1. 2p: 1,2,2,1.
+- **Setup snake.** Start at `firstSeat`, run clockwise. 4p: S, S+1, S+2, S+3,
+  S+3, S+2, S+1, S. 3p: S, S+1, S+2, S+2, S+1, S. 2p: S, S+1, S+1, S.
   Settlement then road, repeatedly. A setup road must touch the settlement just
-  placed. The distance rule applies to settlements, not roads.
+  placed. The distance rule applies to settlements, not roads. The first play
+  turn belongs to `firstSeat`, and turns continue clockwise from there.
 - **Production.** Roll 2d6. Each hex with the total gives 1 per settlement, 2
   per city to its owner. Robber blocks. Desert has no token. No bank limits.
   Log gains by player. A roll with zero production still advances to action.
@@ -146,7 +155,7 @@ the UI. They must agree with `legalMoves` and `refreshDerived`.
   opponent buildings; minimum 5. Largest expedition: most renown, minimum 3.
   Ties favor the current holder. With no holder, a tie at the top means nobody
   holds it. Each award is +2 VP. Recompute after every mutation.
-- **Victory.** Target 16/14/12 for 2/3/4 players. First to reach wins, including
+- **Victory.** Target 18/16/14 for 2/3/4 players. First to reach wins, including
   mid-card and mid-purchase. Set `phase = 'gameOver'`, `winner`, and log it.
 
 ## Server
@@ -215,10 +224,10 @@ fresh `game` view. Errors are unicast `{ type: 'error', code, message, seq }`.
 
 ## Testing bar
 
-- Engine: board counts (19 hexes, 54 vertices, 72 edges, 9 ports, 18 coastal
-  edges), port distribution, distance rule, setup snake, production, 7 flow,
-  discards, robber, bank/port rates, every build, every card effect and
-  fallback, awards and ties, victory mid-card, determinism.
+- Engine: board counts (19 hexes, 54 vertices, 72 edges, 9 ports, 30 coastal
+  edges), port distribution, distance rule, setup snake and random first seat,
+  production, 7 flow, discards, robber, bank/port rates, every build, every
+  card effect and fallback, awards and ties, victory mid-card, determinism.
 - Server: create/join/fill bots/start, reconnect, action routing, bot turn does
   not stall, view filtering hides hands.
 - Bots: full simulated games for 2/3/4 players, no illegal actions, no stalls,

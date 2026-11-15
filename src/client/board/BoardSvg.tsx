@@ -532,7 +532,7 @@ function TargetLayer({
                   }
                 }}
               >
-                <circle cx={round(vertex.x)} cy={round(vertex.y)} r={round(0.34 * s)} className="target-hit" />
+                <circle cx={round(vertex.x)} cy={round(vertex.y)} r={round(0.55 * s)} className="target-hit" />
                 <circle cx={round(vertex.x)} cy={round(vertex.y)} r={round(0.24 * s)} className="target-ring" />
                 {isHover ? <circle cx={round(vertex.x)} cy={round(vertex.y)} r={round(0.24 * s)} className="target-fill" /> : null}
                 {isCity ? <path d={`M${round(vertex.x)} ${round(vertex.y - 0.42 * s)} l${round(0.1 * s)} ${round(0.12 * s)} l${round(-0.1 * s)} ${round(0.12 * s)} l${round(-0.1 * s)} ${round(-0.12 * s)} Z`} className="target-chevron" /> : null}
@@ -580,7 +580,7 @@ function TargetLayer({
                   }
                 }}
               >
-                <path d={d} className="target-edge-hit" strokeWidth={round(0.34 * s)} />
+                <path d={d} className="target-edge-hit" strokeWidth={round(0.6 * s)} />
                 <path d={d} className="target-edge-ring" strokeWidth={round(0.13 * s)} />
                 {isHover ? <path d={d} className="target-edge-core" strokeWidth={round(0.04 * s)} /> : null}
                 {isSelected ? <path d={d} className="target-edge-selected" strokeWidth={round(0.2 * s)} /> : null}

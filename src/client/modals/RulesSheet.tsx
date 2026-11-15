@@ -29,7 +29,7 @@ export function RulesSheet({ onClose }: { onClose: () => void }): JSX.Element {
           <h3>Cards</h3>
           <p>Every player has a private deck. Buy one card per turn; it goes to your discard and cannot be played until a later turn. Charters score from the moment you buy them and are dead draws forever.</p>
           <h3>Trade</h3>
-          <p>Bank and port trades are unlimited. The active player may open one player offer per turn; recipients accept or decline. The first accept executes it.</p>
+          <p>Bank and port trades are unlimited. One open offer at a time: while it waits, nobody can open another. Recipients accept or decline, and the first accept executes it.</p>
           <h3>Awards</h3>
           <p>Longest trade route needs five roads. Largest expedition needs three renown. Each award is worth 2 points and changes hands only when another player strictly exceeds the holder.</p>
           <h3>Keys</h3>

@@ -295,7 +295,19 @@ describe('quickPlay over the wire', () => {
     expect(afterDraft.players[1]?.hand).toBeNull();
     expect(afterDraft.players[1]?.handCount).toBe(5);
 
-    const afterMyTurn = await playTurn(client, afterDraft);
+    // The seeded first seat can be the bot, so wait until the human is up.
+    const myTurn =
+      afterDraft.currentSeat === 0
+        ? afterDraft
+        : (
+            await client.waitFor(
+              'game',
+              (message) => message.view.currentSeat === 0 && message.view.legal.canRoll,
+              15_000,
+            )
+          ).view;
+    expect(myTurn.legal.canRoll).toBe(true);
+    const afterMyTurn = await playTurn(client, myTurn);
     expect(afterMyTurn.currentSeat).toBe(1);
     const versionAfterMyTurn = afterMyTurn.version;
 
@@ -353,20 +365,32 @@ describe('create, join, start', () => {
     expect(guestGame.view.players[0]?.hand).toBeNull();
     expect(hostGame.token).toBe(hostToken);
 
-    // Out of turn: only the sender hears about it.
-    const vertex = hostGame.view.legal.setupSettlements[0];
+    // Out of turn: only the sender hears about it. The seeded first seat can be
+    // the bot, so wait until the host has a setup pick to make.
+    const hostTurn =
+      hostGame.view.legal.setupSettlements.length > 0
+        ? hostGame
+        : await alpha.waitFor(
+            'game',
+            (message) => message.view.legal.setupSettlements.length > 0,
+            15_000,
+          );
+    const vertex = hostTurn.view.legal.setupSettlements[0];
     if (!vertex) throw new Error('no setup vertex');
+    const versionBefore = hostTurn.view.version;
     beta.send({ type: 'action', action: { type: 'setupSettlement', vertex }, seq: 3 });
     const error = await beta.waitFor('error');
     expect(error.code).toBe('NOT_YOUR_TURN');
     expect(error.seq).toBe(3);
 
-    // In turn: both humans get a fresh view at the new version.
+    // In turn: both humans get a fresh view at the new version. A bot may
+    // already have acted, and the helpers can hold older buffered frames, so
+    // match on a version above the one we observed rather than version + 1.
     alpha.send({ type: 'action', action: { type: 'setupSettlement', vertex }, seq: 4 });
-    const hostNext = await alpha.waitFor('game');
-    const guestNext = await beta.waitFor('game');
-    expect(hostNext.view.version).toBe(1);
-    expect(guestNext.view.version).toBe(1);
+    const hostNext = await alpha.waitFor('game', (message) => message.view.version > versionBefore);
+    const guestNext = await beta.waitFor('game', (message) => message.view.version > versionBefore);
+    expect(hostNext.view.version).toBeGreaterThan(versionBefore);
+    expect(guestNext.view.version).toBe(hostNext.view.version);
     expect(hostNext.view.legal.seat).toBe(0);
     expect(guestNext.view.legal.seat).toBe(1);
     expect(hostNext.view.buildings[vertex]).toEqual({ owner: 0, type: 'settlement' });
@@ -488,7 +512,7 @@ describe('rematch', () => {
     expect(rematch.view.phase).toBe('setup');
     expect(rematch.view.version).toBe(0);
     expect(rematch.view.gameId).not.toBe(first.view.gameId);
-    expect(rematch.view.config.seed).not.toBe(first.view.config.seed);
+    expect(rematch.view.config).toEqual({ playerCount: 2, targetVp: first.view.config.targetVp });
     expect(rematch.view.players.map((player) => player.name)).toEqual(
       first.view.players.map((player) => player.name),
     );

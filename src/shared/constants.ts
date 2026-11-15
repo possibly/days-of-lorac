@@ -10,9 +10,9 @@ export const LARGEST_EXPEDITION_MIN = 3;
 
 /** Victory target by player count, from docs/GAME-DESIGN.md section 11. */
 export const VP_TARGETS: Record<2 | 3 | 4, number> = {
-  2: 16,
-  3: 14,
-  4: 12,
+  2: 18,
+  3: 16,
+  4: 14,
 };
 
 export function targetVpFor(playerCount: number): number {

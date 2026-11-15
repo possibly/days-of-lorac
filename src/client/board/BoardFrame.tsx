@@ -47,15 +47,20 @@ export function BoardFrame({
   const lastRoll = useRef<string>('');
 
   useEffect(() => {
-    const key = view.dice ? `${view.version}:${view.dice.total}` : '';
-    if (key && key !== lastRoll.current) {
-      lastRoll.current = key;
-      setDiceAnimate(true);
-      const stop = window.setTimeout(() => setDiceAnimate(false), 700);
-      return () => window.clearTimeout(stop);
+    const dice = view.dice;
+    if (!dice) {
+      lastRoll.current = '';
+      return undefined;
     }
-    return undefined;
-  }, [view.version, view.dice]);
+    // One tumble per roll. `version` moves on every action, so the old key made
+    // the dice bounce again after each build, buy, or card play.
+    const key = `${view.gameId}:${view.turn}:${dice.die1}:${dice.die2}`;
+    if (key === lastRoll.current) return undefined;
+    lastRoll.current = key;
+    setDiceAnimate(true);
+    const stop = window.setTimeout(() => setDiceAnimate(false), 700);
+    return () => window.clearTimeout(stop);
+  }, [view.dice, view.gameId, view.turn]);
 
   useEffect(() => {
     setListOpen(false);

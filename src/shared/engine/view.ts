@@ -4,6 +4,9 @@
  * Hidden: other players' hands, deck order and discard contents. Everything
  * else is public in this game (resources, counts, charters, played cards,
  * awards, VP). The last 120 log entries go on the wire; state keeps them all.
+ *
+ * `config` is public-only: the seed stays in `GameState.config` because a
+ * client that knows it can predict every remaining shuffle and die roll.
  */
 import type {
   CardInstance,
@@ -79,10 +82,14 @@ export function viewFor(
     gameId: state.gameId,
     version: state.version,
     you: seat,
-    config: { ...state.config },
+    config: {
+      playerCount: state.config.playerCount,
+      targetVp: state.config.targetVp,
+    },
     targetVp: state.config.targetVp,
     phase: state.phase,
     turn: state.turn,
+    firstSeat: state.firstSeat,
     currentSeat: state.currentSeat,
     setup: state.setup
       ? {

@@ -22,17 +22,18 @@ function expectAccepted(state: GameState, seat: number, action: Parameters<typeo
 describe('legalMoves matches the engine', () => {
   it('offers exactly the setup settlements and roads the engine accepts', () => {
     let state = newGame(3, 500);
-    const settlements = legalMoves(state, 0).setupSettlements;
+    const seat = state.currentSeat;
+    const settlements = legalMoves(state, seat).setupSettlements;
     expect(settlements.length).toBeGreaterThan(0);
-    for (const vertex of settlements) expectAccepted(state, 0, { type: 'setupSettlement', vertex });
+    for (const vertex of settlements) expectAccepted(state, seat, { type: 'setupSettlement', vertex });
     // A non-listed vertex that is empty but too close must be rejected.
-    expect(legalMoves(state, 1).setupSettlements).toEqual([]);
+    expect(legalMoves(state, (seat + 1) % 3).setupSettlements).toEqual([]);
 
     const vertex = settlements[0] as VertexId;
-    state = act(state, 0, { type: 'setupSettlement', vertex });
-    const roads = legalMoves(state, 0).setupRoads;
+    state = act(state, seat, { type: 'setupSettlement', vertex });
+    const roads = legalMoves(state, seat).setupRoads;
     expect(roads.length).toBeGreaterThan(0);
-    for (const edge of roads) expectAccepted(state, 0, { type: 'setupRoad', edge });
+    for (const edge of roads) expectAccepted(state, seat, { type: 'setupRoad', edge });
   });
 
   it('offers only buildable, affordable and legal placements', () => {
@@ -85,10 +86,23 @@ describe('legalMoves matches the engine', () => {
     state = setResources(state, 0, { wood: 9, brick: 9, sheep: 9, wheat: 9, ore: 9 });
     const legal = legalMoves(state, 0);
     expect(legal.buyable.length).toBeGreaterThan(10);
+    expect(legal.purchaseUsed).toBe(false);
     for (const defId of legal.buyable) expectAccepted(state, 0, { type: 'buyCard', defId });
 
     const bought = act(state, 0, { type: 'buyCard', defId: 'provisioner' });
     expect(legalMoves(bought, 0).buyable).toEqual([]);
+    expect(legalMoves(bought, 0).purchaseUsed).toBe(true);
+    expect(legalMoves(bought, 1).purchaseUsed).toBe(true);
+
+    const ended = act(bought, 0, { type: 'endTurn' });
+    expect(legalMoves(ended, 1).purchaseUsed).toBe(false);
+  });
+
+  it('reports purchaseUsed during setup and the roll phase', () => {
+    const setup = newGame(4, 509);
+    expect(legalMoves(setup, setup.currentSeat).purchaseUsed).toBe(false);
+    const rolling = setupGame(4, 505);
+    expect(legalMoves(rolling, 0).purchaseUsed).toBe(false);
   });
 
   it('reports playable cards with their legal targets', () => {
