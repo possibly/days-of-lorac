@@ -45,7 +45,7 @@ export function TitleScreen({
         <p className="eyebrow">Guild charter · merchants of the inland sea</p>
         <h1 className="wordmark">Days of Lorac</h1>
         <p className="tagline">
-          A board game of hexes, roads, and hard-won decks. Settle the island, buy your guild,
+          A board game of hexes, roads, and hard-won decks. Settle the island, build your guild,
           and be the first to the target.
         </p>
 

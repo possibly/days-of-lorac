@@ -118,6 +118,20 @@ class TestClient {
     });
   }
 
+  /** Newest message of a type ever received, ignoring the pending queue. */
+  latest<T extends ServerMessage['type']>(type: T): MessageOf<T> | null {
+    for (let i = this.messages.length - 1; i >= 0; i -= 1) {
+      const message = this.messages[i];
+      if (message && message.type === type) return message as MessageOf<T>;
+    }
+    return null;
+  }
+
+  /** Drops buffered messages so the next waitFor only sees fresh frames. */
+  drain(type: ServerMessage['type']): void {
+    this.queues.delete(type);
+  }
+
   async close(): Promise<void> {
     if (this.socket.readyState === WebSocket.CLOSED) return;
     await new Promise<void>((resolve) => {
@@ -156,17 +170,26 @@ function setupMove(view: GameView): GameAction | null {
   return null;
 }
 
+/**
+ * Waits for a strictly newer view. Bots act on their own timers, so the next
+ * frame after our action may belong to another seat; matching on version keeps
+ * the helpers from mistaking a bot update for the answer to our own action.
+ */
+async function nextView(client: TestClient, previous: GameView): Promise<GameView> {
+  return (await client.waitFor('game', (message) => message.view.version > previous.version, 12_000)).view;
+}
+
 /** One client's whole setup draft, driven from the wire. */
 async function draft(client: TestClient, first: GameView): Promise<GameView> {
   let view = first;
-  for (let step = 0; step < 40; step += 1) {
+  for (let step = 0; step < 80; step += 1) {
     if (view.phase !== 'setup') return view;
     if (view.currentSeat === view.you) {
       const action = setupMove(view);
       if (!action) throw new Error(`no setup move for seat ${view.you}`);
       client.send({ type: 'action', action, seq: step });
     }
-    view = (await client.waitFor('game')).view;
+    view = await nextView(client, view);
   }
   throw new Error('setup did not finish over the wire');
 }
@@ -174,7 +197,11 @@ async function draft(client: TestClient, first: GameView): Promise<GameView> {
 /** Roll, resolve a seven if one shows up, then end the turn. */
 async function playTurn(client: TestClient, first: GameView): Promise<GameView> {
   let view = first;
-  for (let step = 0; step < 12; step += 1) {
+  for (let step = 0; step < 20; step += 1) {
+    if (!view.legal.isTurn) {
+      view = await nextView(client, view);
+      continue;
+    }
     if (view.legal.canRoll) {
       client.send({ type: 'action', action: { type: 'roll' } });
     } else if (view.legal.discard) {
@@ -208,11 +235,11 @@ async function playTurn(client: TestClient, first: GameView): Promise<GameView> 
       });
     } else if (view.legal.canEndTurn) {
       client.send({ type: 'action', action: { type: 'endTurn' } });
-      return (await client.waitFor('game')).view;
+      return await nextView(client, view);
     } else {
       throw new Error(`nothing to do in phase ${view.phase}`);
     }
-    view = (await client.waitFor('game')).view;
+    view = await nextView(client, view);
   }
   throw new Error('turn did not finish over the wire');
 }
@@ -366,35 +393,56 @@ describe('create, join, start', () => {
     expect(hostGame.token).toBe(hostToken);
 
     // Out of turn: only the sender hears about it. The seeded first seat can be
-    // the bot, so wait until the host has a setup pick to make.
-    const hostTurn =
-      hostGame.view.legal.setupSettlements.length > 0
-        ? hostGame
-        : await alpha.waitFor(
-            'game',
-            (message) => message.view.legal.setupSettlements.length > 0,
-            15_000,
-          );
-    const vertex = hostTurn.view.legal.setupSettlements[0];
-    if (!vertex) throw new Error('no setup vertex');
-    const versionBefore = hostTurn.view.version;
-    beta.send({ type: 'action', action: { type: 'setupSettlement', vertex }, seq: 3 });
+    // the bot, so use the newest view (never a buffered older frame) and wait
+    // for a strictly newer one when the host is not up yet.
+    // Drive the draft until the host is up. Bots act on their own timers and
+    // the guest also has picks, so read the newest view each round instead of
+    // assuming a single frame moves the turn to the host. `isTurn` covers both
+    // the settlement step and its paired road step.
+    let hostView = alpha.latest('game')?.view ?? hostGame.view;
+    for (let step = 0; step < 24 && !hostView.legal.isTurn; step += 1) {
+      if (hostView.currentSeat === guestGame.you) {
+        // The guest's socket can be a frame behind the host's. Catch it up
+        // before deciding whether the guest can act, or both sides wait.
+        let guestView = beta.latest('game')?.view ?? guestGame.view;
+        if (guestView.version < hostView.version) {
+          guestView = (
+            await beta.waitFor('game', (message) => message.view.version >= hostView.version, 8_000)
+          ).view;
+        }
+        if (guestView.legal.isTurn) {
+          const guestMove = setupMove(guestView);
+          if (guestMove) beta.send({ type: 'action', action: guestMove, seq: 200 + step });
+        }
+      }
+      hostView = await nextView(alpha, hostView);
+    }
+    const hostAction = setupMove(hostView);
+    if (!hostAction) throw new Error('no setup move for the host');
+    const versionBefore = hostView.version;
+    beta.send({ type: 'action', action: hostAction, seq: 3 });
     const error = await beta.waitFor('error');
     expect(error.code).toBe('NOT_YOUR_TURN');
     expect(error.seq).toBe(3);
 
-    // In turn: both humans get a fresh view at the new version. A bot may
-    // already have acted, and the helpers can hold older buffered frames, so
-    // match on a version above the one we observed rather than version + 1.
-    alpha.send({ type: 'action', action: { type: 'setupSettlement', vertex }, seq: 4 });
+    // In turn: both humans get a fresh view at the new version. Drop buffered
+    // frames so a stale draft view cannot satisfy the wait.
+    alpha.drain('game');
+    beta.drain('game');
+    alpha.send({ type: 'action', action: hostAction, seq: 4 });
     const hostNext = await alpha.waitFor('game', (message) => message.view.version > versionBefore);
     const guestNext = await beta.waitFor('game', (message) => message.view.version > versionBefore);
     expect(hostNext.view.version).toBeGreaterThan(versionBefore);
     expect(guestNext.view.version).toBe(hostNext.view.version);
     expect(hostNext.view.legal.seat).toBe(0);
     expect(guestNext.view.legal.seat).toBe(1);
-    expect(hostNext.view.buildings[vertex]).toEqual({ owner: 0, type: 'settlement' });
-    expect(guestNext.view.buildings[vertex]).toEqual({ owner: 0, type: 'settlement' });
+    if (hostAction.type === 'setupSettlement') {
+      expect(hostNext.view.buildings[hostAction.vertex]).toEqual({ owner: 0, type: 'settlement' });
+      expect(guestNext.view.buildings[hostAction.vertex]).toEqual({ owner: 0, type: 'settlement' });
+    } else {
+      expect(hostNext.view.roads[hostAction.edge]).toBe(0);
+      expect(guestNext.view.roads[hostAction.edge]).toBe(0);
+    }
 
     const started = await getJson(`/api/rooms/${code}`);
     expect(started.status).toBe(200);
