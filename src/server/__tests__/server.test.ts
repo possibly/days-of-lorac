@@ -161,8 +161,10 @@ async function getJson(
   return { status: response.status, body };
 }
 
+type SetupAction = Extract<GameAction, { type: 'setupSettlement' | 'setupRoad' }>;
+
 /** Picks the setup move from the view's own legal moves. */
-function setupMove(view: GameView): GameAction | null {
+function setupMove(view: GameView): SetupAction | null {
   const vertex = view.legal.setupSettlements[0];
   if (vertex) return { type: 'setupSettlement', vertex };
   const edge = view.legal.setupRoads[0];
