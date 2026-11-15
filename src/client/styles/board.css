@@ -1,0 +1,294 @@
+/* Inline board SVG: sea mat, hexes, tokens, roads, buildings, ports, targets. */
+
+.board-svg { overflow: visible; }
+
+.hex-fill {
+  stroke: #c9a75f;
+  stroke-opacity: 0.3;
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+.hex-shade {
+  stroke: #241d12;
+  stroke-opacity: 0.16;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.terrain-glyph {
+  color: #231c10;
+  pointer-events: none;
+}
+.hex-robber .hex-fill { filter: saturate(0.55) brightness(0.8); }
+.robber-hatch { pointer-events: none; }
+.hex-flash .token-disc { animation: tokenFlash 180ms ease-out 2; }
+@keyframes tokenFlash {
+  0%, 100% { fill: #f6edd8; }
+  50% { fill: var(--gold-300); }
+}
+.hex-flash .hex-fill { animation: hexFlash 360ms ease-out; }
+@keyframes hexFlash {
+  0%, 100% { stroke-opacity: 0.3; }
+  50% { stroke-opacity: 1; }
+}
+
+.token-disc {
+  fill: #f6edd8;
+  stroke: #a07f3d;
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3));
+}
+.token-ring-outer {
+  fill: none;
+  stroke: #a07f3d;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+.token-ring-inner {
+  fill: none;
+  stroke: #9a3f2c;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.token-num {
+  font-family: var(--sans);
+  font-weight: 600;
+  fill: #4a3d28;
+  paint-order: stroke;
+  stroke: rgba(246, 237, 216, 0.7);
+  stroke-width: 0.2;
+}
+.token-strong .token-num {
+  font-weight: 700;
+  fill: #241d12;
+  stroke-width: 0.3;
+}
+.token-pip { fill: #6f6047; }
+.token-pip-strong { fill: #9a3f2c; }
+
+.road-casing {
+  fill: none;
+  stroke: #241d12;
+  stroke-opacity: 0.45;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.road-body {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  paint-order: stroke;
+  stroke-dasharray: 400;
+  stroke-dashoffset: 0;
+  animation: roadDraw 260ms ease-out;
+}
+.road-pattern {
+  fill: none;
+  stroke: #f6edd8;
+  stroke-opacity: 0.55;
+  stroke-linecap: round;
+}
+.road-seat3 .road-double { stroke-opacity: 0.6; }
+@keyframes roadDraw {
+  from { stroke-dashoffset: 400; }
+  to { stroke-dashoffset: 0; }
+}
+
+.building-body {
+  stroke: #241d12;
+  stroke-width: 1.5;
+  stroke-opacity: 0.9;
+  vector-effect: non-scaling-stroke;
+  paint-order: stroke;
+}
+.building-city .building-body { stroke-width: 1.6; }
+.building-shadow { fill: rgba(0, 0, 0, 0.35); }
+.building-highlight {
+  stroke: #f6edd8;
+  stroke-opacity: 0.55;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  fill: none;
+}
+.building-crenels {
+  stroke: #241d12;
+  stroke-width: 1.2;
+  stroke-opacity: 0.9;
+  vector-effect: non-scaling-stroke;
+  paint-order: stroke;
+}
+.building-gold-band {
+  stroke: #e8cf98;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  fill: none;
+}
+.building-notch,
+.building-band,
+.building-diamond {
+  stroke: #f6edd8;
+  stroke-opacity: 0.7;
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+  fill: none;
+}
+.building-coin { fill: #f6edd8; fill-opacity: 0.8; }
+.building-settlement { animation: buildingPop 200ms cubic-bezier(0.3, 1.4, 0.5, 1); }
+.building-city { animation: cityRise 220ms ease-out; }
+@keyframes buildingPop {
+  from { transform: scale(0.7); opacity: 0.4; transform-origin: center; }
+  to { transform: scale(1); opacity: 1; }
+}
+@keyframes cityRise {
+  from { opacity: 0.3; }
+  to { opacity: 1; }
+}
+
+.robber-body {
+  fill: #241d12;
+  stroke: #0b1a15;
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.45));
+}
+.robber-eye { fill: #f6edd8; }
+.robber { animation: drift 4s ease-in-out infinite; }
+@keyframes drift {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-0.04px); }
+}
+
+.port-tag {
+  fill: #ece0c4;
+  stroke: #a07f3d;
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+}
+.port-owned .port-tag {
+  fill: #ddcda7;
+  stroke: #e8cf98;
+  stroke-width: 2;
+}
+.port-rate {
+  font-family: var(--sans);
+  font-size: 0.12px;
+  font-weight: 700;
+  fill: #241d12;
+}
+.port-rope {
+  stroke: #c9a75f;
+  stroke-opacity: 0.5;
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  vector-effect: non-scaling-stroke;
+}
+.port-dot { fill: #c9a75f; stroke: #241d12; stroke-width: 0.8; vector-effect: non-scaling-stroke; }
+.port .terrain-glyph { color: #3a2f1c; }
+
+/* ---------- targets ---------- */
+
+.target { cursor: pointer; outline: none; }
+.target-hit { fill: transparent; }
+.target-ring {
+  fill: none;
+  stroke: #e8cf98;
+  stroke-opacity: 0.7;
+  stroke-width: 1.6;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.target-setup .target-ring { animation: targetPulse 1.6s ease-in-out infinite; }
+.target-hover .target-ring { stroke-opacity: 1; stroke-width: 2.2; }
+.target-fill { fill: #e8cf98; fill-opacity: 0.3; pointer-events: none; }
+.target-selected .target-ring { stroke-opacity: 1; stroke-width: 2.4; }
+.target:focus-visible .target-ring { stroke: #fff6dd; stroke-width: 3; }
+.bracket {
+  fill: none;
+  stroke: #e8cf98;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+@keyframes targetPulse {
+  0%, 100% { stroke-opacity: 0.5; }
+  50% { stroke-opacity: 1; }
+}
+
+.target-edge-hit { fill: none; stroke: transparent; }
+.target-edge-ring {
+  fill: none;
+  stroke: #e8cf98;
+  stroke-opacity: 0.6;
+  stroke-dasharray: 6 4;
+  vector-effect: non-scaling-stroke;
+  animation: dash 1.4s linear infinite;
+  pointer-events: none;
+}
+.target-edge-core {
+  fill: none;
+  stroke: #f6edd8;
+  stroke-opacity: 0.9;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.target-edge-selected {
+  fill: none;
+  stroke: #e8cf98;
+  stroke-opacity: 0.9;
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+}
+.target-edge.target-hover .target-edge-ring { stroke-opacity: 1; stroke-dasharray: none; }
+.target-chevron { fill: #e8cf98; fill-opacity: 0.85; stroke: #a07f3d; stroke-width: 1; vector-effect: non-scaling-stroke; }
+
+.target-hex-hit { stroke: transparent; }
+.target-hex-ring {
+  fill: none;
+  stroke: #e8cf98;
+  stroke-opacity: 0.85;
+  stroke-width: 1.6;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.target-hex-fill { fill: #e8cf98; fill-opacity: 0.22; pointer-events: none; }
+.target-hex-selected {
+  fill: none;
+  stroke: #e8cf98;
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+}
+.target-hex:hover .target-hex-ring,
+.target-hex.target-hover .target-hex-ring { stroke-width: 3; stroke-opacity: 1; }
+
+/* ---------- production feedback ---------- */
+
+.floater-text {
+  font-family: var(--sans);
+  font-size: 0.3px;
+  font-weight: 700;
+  fill: #241d12;
+  paint-order: stroke;
+  stroke: #f6edd8;
+  stroke-width: 0.05;
+  stroke-opacity: 0.85;
+  animation: floatUp 900ms ease-out forwards;
+}
+.floater-blocked .floater-text {
+  fill: #f6edd8;
+  stroke: #9a3f2c;
+  stroke-opacity: 0.95;
+}
+@keyframes floatUp {
+  0% { opacity: 0; transform: translateY(0); }
+  18% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-0.22px); }
+}
+
+.reduced-motion .robber,
+.reduced-motion .target-setup .target-ring,
+.reduced-motion .target-edge-ring { animation: none; }
+.reduced-motion .floater-text { animation: floaterFade 400ms ease-out forwards; }
+@keyframes floaterFade {
+  0% { opacity: 0; }
+  30% { opacity: 1; }
+  100% { opacity: 0; }
+}

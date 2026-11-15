@@ -1,0 +1,36 @@
+/* Palette and type. Values are the contract from docs/UI-SPEC.md section 3. */
+:root {
+  --sea-900: #0b1a15;
+  --sea-800: #0f241d;
+  --sea-700: #143026;
+  --sea-600: #1d4536;
+  --sea-500: #2c6a5a;
+  --sea-300: #8fc0a9;
+  --parchment-100: #f6edd8;
+  --parchment-200: #ece0c4;
+  --parchment-300: #ddcda7;
+  --ink-900: #241d12;
+  --ink-700: #4a3d28;
+  --ink-500: #6f6047;
+  --gold-300: #e8cf98;
+  --gold-400: #c9a75f;
+  --gold-600: #a07f3d;
+  --wood: #3f5d3a;
+  --brick: #8c4a34;
+  --sheep: #7d8f56;
+  --wheat: #b58a3c;
+  --ore: #5d626b;
+  --desert: #c9b287;
+  --error: #9a3f2c;
+  --ok: #3f7a52;
+  --p1: #b8452f;
+  --p2: #2f6f8f;
+  --p3: #c9992f;
+  --p4: #6b4b8a;
+  --serif: ui-serif, "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+  --sans: ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --panel-shadow: 0 12px 24px -18px rgba(0, 0, 0, 0.85);
+  --brass: rgba(201, 167, 95, 0.7);
+  --hairline: inset 0 0 0 1px rgba(201, 167, 95, 0.22);
+}
