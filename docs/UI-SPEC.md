@@ -758,3 +758,13 @@ breakpoint at `max-width: 640px`, plus a short-viewport guard at
 Measured after the fix: 320x568, 360x800, 375x667, 390x844, 430x932 all report
 `document.scrollWidth === window.innerWidth` and a board that ends inside the
 viewport.
+
+### Market resource strip (added after playtesting)
+
+The market and trade panels carry a sticky copy of the viewer's five resource
+counts and their total against the 9-resource limit. It pins under the rail
+tabs while the list scrolls, turns warm when over the limit, and hides the long
+label on phones. The panel no longer depends on the player ledger being on
+screen, which matters most on a phone where the rail is a full-width drawer.
+Waiting players also get a Market button in the action bar on narrow layouts,
+so the drawer can be opened before their turn.

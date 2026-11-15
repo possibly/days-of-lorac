@@ -759,3 +759,8 @@
   .play-area, .hand-counters { display: none; }
   .toasts { bottom: 130px; }
 }
+
+/* The market drawer toggle only matters where the rail is off-canvas. */
+@media (min-width: 1181px) {
+  .rail-open-only { display: none; }
+}

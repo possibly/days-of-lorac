@@ -52,6 +52,20 @@ export function ActionBar(props: ActionBarProps): JSX.Element {
 
   const holding = you ? RESOURCES.reduce((sum, resource) => sum + you.resources[resource], 0) : 0;
 
+  // On tablet and phone the market lives in a drawer, so waiting players need
+  // a way to open it. Desktop already shows the rail, hence the CSS hiding.
+  const marketButton = (
+    <Button
+      variant="ghost"
+      className="rail-open-only"
+      onClick={props.onOpenMarket}
+      disabled={lost}
+      reason={lost ? 'Connection lost. Reconnecting.' : null}
+    >
+      Market
+    </Button>
+  );
+
   // ----- game over ---------------------------------------------------------
   if (view.phase === 'gameOver') {
     const winner = view.players.find((player) => player.seat === view.winner);
@@ -126,7 +140,7 @@ export function ActionBar(props: ActionBarProps): JSX.Element {
   // ----- setup -------------------------------------------------------------
   if (view.phase === 'setup') {
     if (!legal.isTurn) {
-      return bar(`Waiting on ${activeName} to place.`, null);
+      return bar(`Waiting on ${activeName} to place.`, marketButton);
     }
     const step = view.setup?.step ?? 'settlement';
     const prompt = step === 'settlement'
@@ -137,7 +151,7 @@ export function ActionBar(props: ActionBarProps): JSX.Element {
 
   // ----- roll --------------------------------------------------------------
   if (view.phase === 'roll') {
-    if (!legal.isTurn) return bar(`Waiting on ${activeName} to roll.`, null);
+    if (!legal.isTurn) return bar(`Waiting on ${activeName} to roll.`, marketButton);
     return bar('Roll for production.', (
       <Button variant="primary" onClick={props.onRoll} disabled={!legal.canRoll || lost} reason={lost ? 'Connection lost. Reconnecting.' : !legal.canRoll ? 'You cannot roll right now.' : null}>
         Roll 2d6
@@ -156,12 +170,12 @@ export function ActionBar(props: ActionBarProps): JSX.Element {
     const text = owing.length > 0
       ? `${owing.map((player) => `${player?.name} is discarding ${view.discardRequired[player?.seat ?? 0] ?? 0}`).join('; ')}.`
       : `${activeName} is discarding.`;
-    return bar(text, null);
+    return bar(text, marketButton);
   }
 
   // ----- robber ------------------------------------------------------------
   if (view.phase === 'robber') {
-    if (!legal.robber) return bar(`${activeName} is moving the robber.`, null);
+    if (!legal.robber) return bar(`${activeName} is moving the robber.`, marketButton);
     const hex = selection?.kind === 'hex' ? selection.id : null;
     const victims = hex ? legal.robber.victims[hex] ?? [] : [];
     return (
@@ -202,7 +216,7 @@ export function ActionBar(props: ActionBarProps): JSX.Element {
 
   // ----- action phase ------------------------------------------------------
   if (!legal.isTurn) {
-    return bar(`Waiting on ${activeName} to end their turn.`, null);
+    return bar(`Waiting on ${activeName} to end their turn.`, marketButton);
   }
 
   const affordable = legal.build.affordable;
@@ -234,6 +248,7 @@ export function ActionBar(props: ActionBarProps): JSX.Element {
           {subline ? <p className="prompt-sub">{subline}</p> : null}
         </div>
         <div className="action-buttons">
+          <Button variant="ghost" className="rail-open-only" onClick={props.onOpenMarket} disabled={lost} reason={lost ? 'Connection lost. Reconnecting.' : null}>Market</Button>
           <Button variant="primary" className="end-turn pulse" onClick={props.onEndTurn} disabled={lost} reason={lost ? 'Connection lost. Reconnecting.' : null}>End turn</Button>
         </div>
       </div>

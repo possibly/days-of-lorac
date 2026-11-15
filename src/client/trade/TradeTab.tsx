@@ -3,6 +3,7 @@ import type { BankTradeOption, GameView, PartialResources, Resource, Seat } from
 import { RESOURCES } from '@shared/types';
 import { ResourceIcon } from '../ui/icons';
 import { Button } from '../ui/Button';
+import { MyResources } from '../ui/MyResources';
 
 interface TradeTabProps {
   view: GameView;
@@ -43,6 +44,8 @@ export function TradeTab({ view, onOffer, onCancelOffer, onBankTrade, letters }:
         <h2 className="rail-title">Trade</h2>
         <span className="market-chip">{view.legal.bankTrades[0] ? `Bank rate ${view.legal.bankTrades[0].count}:1` : 'Bank 4:1'}</span>
       </header>
+
+      <MyResources view={view} letters={letters} />
 
       {offer ? (
         <section className="open-offer" aria-label="Open offer">

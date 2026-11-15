@@ -4,6 +4,7 @@ import { MARKET_CARDS, CHARTER_CARDS } from '@shared/cards';
 import { RESOURCES } from '@shared/types';
 import { ResourceIcon } from '../ui/icons';
 import { Button } from '../ui/Button';
+import { MyResources } from '../ui/MyResources';
 
 interface MarketTabProps {
   view: GameView;
@@ -50,6 +51,8 @@ export function MarketTab({ view, purchaseUsed, onBuy, letters }: MarketTabProps
         <h2 className="rail-title">Market</h2>
         {chip}
       </header>
+
+      <MyResources view={view} letters={letters} />
 
       <section className="charter-row" aria-label="Charter stacks">
         {CHARTER_CARDS.map((def) => (
