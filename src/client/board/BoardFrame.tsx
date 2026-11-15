@@ -42,6 +42,8 @@ export function BoardFrame({
   const frame = useRef<HTMLDivElement>(null);
   const [tip, setTip] = useState<{ text: string; x: number; y: number; show: boolean } | null>(null);
   const timer = useRef<number | undefined>(undefined);
+  const dismissTimer = useRef<number | undefined>(undefined);
+  const coarse = useRef(false);
   const [listOpen, setListOpen] = useState(false);
   const [diceAnimate, setDiceAnimate] = useState(false);
   const lastRoll = useRef<string>('');
@@ -66,8 +68,28 @@ export function BoardFrame({
     setListOpen(false);
   }, [mode]);
 
+  useEffect(() => {
+    // Touch has no pointerleave, so a hover tooltip would stick around and
+    // sit over the board. Treat it as a short tap hint instead.
+    coarse.current =
+      window.matchMedia('(pointer: coarse)').matches ||
+      window.matchMedia('(hover: none)').matches;
+    const clear = (): void => setTip(null);
+    const node = frame.current;
+    node?.addEventListener('pointerdown', clear, true);
+    return () => {
+      node?.removeEventListener('pointerdown', clear, true);
+    };
+  }, []);
+
+  useEffect(() => {
+    setTip(null);
+    if (dismissTimer.current !== undefined) window.clearTimeout(dismissTimer.current);
+  }, [view.version, view.phase, selected]);
+
   useEffect(() => () => {
     if (timer.current !== undefined) window.clearTimeout(timer.current);
+    if (dismissTimer.current !== undefined) window.clearTimeout(dismissTimer.current);
   }, []);
 
   const showTip = (target: BoardTarget | null, point: { x: number; y: number } | null): void => {
@@ -77,6 +99,10 @@ export function BoardFrame({
       return;
     }
     const text = targetLabel(view, index, target);
+    if (dismissTimer.current !== undefined) window.clearTimeout(dismissTimer.current);
+    if (coarse.current) {
+      dismissTimer.current = window.setTimeout(() => setTip(null), 2200);
+    }
     const place = (): void => {
       const rect = frame.current?.getBoundingClientRect();
       if (!rect) return;

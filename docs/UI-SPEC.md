@@ -768,3 +768,16 @@ label on phones. The panel no longer depends on the player ledger being on
 screen, which matters most on a phone where the rail is a full-width drawer.
 Waiting players also get a Market button in the action bar on narrow layouts,
 so the drawer can be opened before their turn.
+
+### Notifications and touch tooltips (added after the phone test)
+
+Toasts move to the top of the screen on phones, directly under the header, so
+they never sit over the board or the hand. They keep an explicit close button
+and still dismiss when the body is tapped. The old bottom placement was above
+the dock on paper but landed on the play area once the phone hand row changed
+height.
+
+Board tooltips were hover-only. Touch has no pointerleave, so they stuck around
+after a tap. On coarse pointers a tooltip now behaves as a hint: it appears on
+tap, hides itself after about two seconds, and clears on any other pointerdown
+or when the game state changes.

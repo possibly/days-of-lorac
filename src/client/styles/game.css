@@ -728,7 +728,16 @@
   .action-buttons { gap: 4px; }
   .action-buttons .btn { font-size: 11px; padding: 4px 7px; min-height: 32px; }
   .supply-rail { width: 100vw; max-width: 100vw; top: 46px; }
-  .toasts { bottom: 176px; }
+  /* Notifications sit under the header on a phone, clear of the board and
+     the hand. */
+  .toasts {
+    top: calc(46px + 8px + env(safe-area-inset-top));
+    bottom: auto;
+    left: 8px;
+    right: 8px;
+    transform: none;
+    align-items: stretch;
+  }
   .board-a11y { left: 6px; bottom: 4px; }
   .board-a11y > .btn { font-size: 9px; padding: 2px 5px; }
   .reconnect-banner, .pilot-strip { font-size: 10px; }
@@ -757,7 +766,14 @@
   .card-foot { display: none; }
   /* No room for a play-area strip above the cards in landscape. */
   .play-area, .hand-counters { display: none; }
-  .toasts { bottom: 130px; }
+  .toasts {
+    top: calc(40px + 6px + env(safe-area-inset-top));
+    bottom: auto;
+    left: 8px;
+    right: 8px;
+    transform: none;
+    align-items: stretch;
+  }
 }
 
 /* The market drawer toggle only matters where the rail is off-canvas. */
