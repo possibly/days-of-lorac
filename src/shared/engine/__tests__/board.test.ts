@@ -1,14 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { buildBoard } from '../board.js';
+import { buildBoard, desertHexId } from '../board.js';
+import { generateMap } from '../map.js';
 import { HEX_TEMPLATE, PORT_ORDER } from '../../board-template.js';
+import { DEFAULT_MAP_SETTINGS } from '../../map-settings.js';
 import type { Board } from '../../types.js';
+
+/** The classic layout the rest of these tests measure. */
+function classicLayout() {
+  return generateMap(DEFAULT_MAP_SETTINGS, 1).layout;
+}
 
 function byId(board: Board): Map<string, { x: number; y: number }> {
   return new Map(board.vertices.map((vertex) => [vertex.id, { x: vertex.x, y: vertex.y }]));
 }
 
 describe('board topology', () => {
-  const board = buildBoard({ rotation: 0, mirror: 0 });
+  const board = buildBoard(classicLayout(), { rotation: 0, mirror: 0 });
 
   it('has 19 hexes, 54 vertices, 72 edges, 30 coastal edges and 9 ports', () => {
     expect(board.hexes).toHaveLength(19);
@@ -150,12 +157,16 @@ describe('board topology', () => {
     }
   });
 
+  it('puts the robber start on the desert', () => {
+    expect(desertHexId(board)).toBe('C3');
+  });
+
   it('keeps hex ids attached to their terrain across all twelve orientations', () => {
     const hexIds = HEX_TEMPLATE.map((hex) => hex.id);
     const terrains = new Map(HEX_TEMPLATE.map((hex) => [hex.id, hex.terrain]));
     for (let rotation = 0; rotation < 6; rotation += 1) {
       for (let mirror = 0; mirror < 2; mirror += 1) {
-        const variant = buildBoard({ rotation, mirror });
+        const variant = buildBoard(classicLayout(), { rotation, mirror });
         expect(variant.hexes).toHaveLength(19);
         expect(variant.vertices).toHaveLength(54);
         expect(variant.edges).toHaveLength(72);
@@ -171,10 +182,10 @@ describe('board topology', () => {
   });
 
   it('is deterministic per orientation and actually varies the geometry', () => {
-    const a = buildBoard({ rotation: 3, mirror: 1 });
-    const b = buildBoard({ rotation: 3, mirror: 1 });
+    const a = buildBoard(classicLayout(), { rotation: 3, mirror: 1 });
+    const b = buildBoard(classicLayout(), { rotation: 3, mirror: 1 });
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
-    const base = buildBoard({ rotation: 0, mirror: 0 });
+    const base = buildBoard(classicLayout(), { rotation: 0, mirror: 0 });
     expect({ ...base.vertices[0] }).not.toEqual({ ...a.vertices[0] });
 
     // Twelve distinct terrain layouts: the hex positions (in template order)
@@ -182,7 +193,7 @@ describe('board topology', () => {
     const signatures = new Set<string>();
     for (let rotation = 0; rotation < 6; rotation += 1) {
       for (let mirror = 0; mirror < 2; mirror += 1) {
-        const boardVariant = buildBoard({ rotation, mirror });
+        const boardVariant = buildBoard(classicLayout(), { rotation, mirror });
         signatures.add(
           boardVariant.hexes
             .map((hex) => `${hex.id}:${hex.x.toFixed(3)}:${hex.y.toFixed(3)}`)

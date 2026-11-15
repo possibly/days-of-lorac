@@ -20,7 +20,7 @@ import type {
   ServerMessage,
   WireErrorCode,
 } from '@shared/protocol';
-import type { GameAction, GameView, Seat } from '@shared/types';
+import type { GameAction, GameView, MapSettings, Seat } from '@shared/types';
 import { GAME_VERSION } from '@shared/version';
 import { clearToken, loadToken, saveToken } from './storage';
 
@@ -459,12 +459,22 @@ class GameClient {
 
   // ----- convenience intents ----------------------------------------------
 
-  quickPlay(name: string, seats: 2 | 3 | 4, difficulty: 'easy' | 'normal' | 'hard'): void {
-    this.send({ type: 'quickPlay', name, seats, difficulty });
+  quickPlay(
+    name: string,
+    seats: 2 | 3 | 4,
+    difficulty: 'easy' | 'normal' | 'hard',
+    map: MapSettings,
+  ): void {
+    this.send({ type: 'quickPlay', name, seats, difficulty, map });
   }
 
-  createRoom(name: string, maxPlayers: 2 | 3 | 4, difficulty: 'easy' | 'normal' | 'hard'): void {
-    this.send({ type: 'createRoom', name, maxPlayers, difficulty });
+  createRoom(
+    name: string,
+    maxPlayers: 2 | 3 | 4,
+    difficulty: 'easy' | 'normal' | 'hard',
+    map: MapSettings,
+  ): void {
+    this.send({ type: 'createRoom', name, maxPlayers, difficulty, map });
   }
 
   joinRoom(code: string, name: string): void {
@@ -489,6 +499,10 @@ class GameClient {
 
   setReady(ready: boolean): void {
     this.send({ type: 'setReady', ready });
+  }
+
+  setMapSettings(map: MapSettings): void {
+    this.send({ type: 'setMapSettings', map });
   }
 
   addBot(difficulty: 'easy' | 'normal' | 'hard'): void {

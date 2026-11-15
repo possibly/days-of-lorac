@@ -471,6 +471,64 @@ describe('create, join, start', () => {
   }, 10_000);
 });
 
+describe('map settings over the wire', () => {
+  it('carries the host island choice into the game view', async () => {
+    const host = await connectClient();
+    const guest = await connectClient();
+
+    host.send({
+      type: 'createRoom',
+      name: 'Ada',
+      maxPlayers: 2,
+      difficulty: 'normal',
+      map: { size: 'compact', terrain: 'balanced', tokens: 'shuffled' },
+    });
+    const lobby = await host.waitFor('lobby');
+    expect(lobby.room.config.map).toEqual({
+      size: 'compact',
+      terrain: 'balanced',
+      tokens: 'shuffled',
+    });
+    const code = lobby.room.code;
+
+    guest.send({ type: 'joinRoom', code, name: 'Bo' });
+    await guest.waitFor('lobby');
+
+    guest.send({ type: 'setMapSettings', map: { size: 'grand', terrain: 'fixed', tokens: 'fixed' } });
+    expect((await guest.waitFor('error')).code).toBe('NOT_HOST');
+
+    host.send({ type: 'setMapSettings', map: { size: 'grand', terrain: 'fixed', tokens: 'fixed' } });
+    const changed = await host.waitFor('lobby', (message) => message.room.config.map.size === 'grand');
+    expect(changed.room.config.map).toEqual({ size: 'grand', terrain: 'fixed', tokens: 'fixed' });
+
+    guest.send({ type: 'setReady', ready: true });
+    await host.waitFor('lobby', (message) =>
+      message.room.players.some((player) => player.seat === 1 && player.ready),
+    );
+    host.send({ type: 'startGame' });
+    const game = await host.waitFor('game');
+    expect(game.view.config.map).toEqual({ size: 'grand', terrain: 'fixed', tokens: 'fixed' });
+    expect(game.view.board.hexes).toHaveLength(37);
+    const robber = game.view.board.hexes.find((hex) => hex.id === game.view.robberHex);
+    expect(robber?.terrain).toBe('desert');
+  });
+
+  it('rejects a malformed map before touching a room', async () => {
+    const host = await connectClient();
+    host.send({
+      type: 'createRoom',
+      name: 'Ada',
+      maxPlayers: 2,
+      difficulty: 'normal',
+      map: { size: 'huge' },
+    } as unknown as ClientMessage);
+    expect((await host.waitFor('error')).code).toBe('BAD_MESSAGE');
+
+    host.send({ type: 'quickPlay', name: 'Ada', seats: 2, difficulty: 'normal', map: {} } as unknown as ClientMessage);
+    expect((await host.waitFor('error')).code).toBe('BAD_MESSAGE');
+  });
+});
+
 describe('robustness', () => {
   it('survives malformed JSON, unknown types, and rate limiting', async () => {
     const client = await connectClient();
@@ -562,7 +620,7 @@ describe('rematch', () => {
     expect(rematch.view.phase).toBe('setup');
     expect(rematch.view.version).toBe(0);
     expect(rematch.view.gameId).not.toBe(first.view.gameId);
-    expect(rematch.view.config).toEqual({ playerCount: 2, targetVp: first.view.config.targetVp });
+    expect(rematch.view.config).toEqual({ ...first.view.config });
     expect(rematch.view.players.map((player) => player.name)).toEqual(
       first.view.players.map((player) => player.name),
     );

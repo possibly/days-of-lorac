@@ -35,11 +35,15 @@ bestBankRate(state: GameState, seat: Seat, give: Resource): number
 
 `createGame`:
 - Validates 2-4 players, target from `targetVpFor`.
-- Picks a board orientation from the seed (rotation 0-5, mirror 0-1) and builds
-  the full graph, ports, terrain, tokens.
+- Draws a board orientation from the seed (rotation 0-5, mirror 0-1), then the
+  map layout for `options.map` (defaults to the classic fixed standard island),
+  then builds the full graph, ports, terrain, and tokens. Fixed land and fixed
+  numbers consume no randomness; other modes draw from the same RNG.
+- Refuses a player count the island cannot seat (`compact` holds two).
 - Draws a seeded `firstSeat` after the board draws, before the deck shuffles.
   `setup.order[0]`, `firstSeat`, and the first play turn all agree.
-- Puts the robber on the desert.
+- Puts the robber on the desert (the first desert in id order when a map has
+  two).
 - Builds the snake setup order for the player count, rotated to start at
   `firstSeat` and run clockwise.
 - Creates each player's 10-card starting deck, shuffles it with the game RNG,

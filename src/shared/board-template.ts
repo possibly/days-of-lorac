@@ -1,12 +1,14 @@
 import type { Resource, Terrain } from './types.js';
 
 /**
- * One balanced island, as designed in docs/GAME-DESIGN.md section 4.1.
+ * The designed standard island, as written in docs/GAME-DESIGN.md section 4.1.
  *
- * Rows are pointy-top axial hexes: r = -2..2, row sizes 3-4-5-4-3.
- * The engine takes this template, applies one of twelve rotations/mirrors,
- * builds the vertex/edge graph, and places ports. The client receives the
- * finished Board from the server, so it never has to derive topology.
+ * Rows are pointy-top axial hexes: r = -2..2, row sizes 3-4-5-4-3. This table
+ * is what `fixed` terrain and `fixed` tokens use on a standard island. Other
+ * map sizes are generated in src/shared/engine/map.ts. The engine applies one
+ * of twelve rotations/mirrors to whichever layout it was given, builds the
+ * vertex/edge graph, and places ports; the client only ever sees the finished
+ * Board.
  */
 export interface HexTemplate {
   id: string;
@@ -54,6 +56,3 @@ export const PORT_ORDER: readonly { resource: Resource | 'generic'; rate: 2 | 3 
   { resource: 'generic', rate: 3 },
   { resource: 'wood', rate: 2 },
 ] as const;
-
-export const DESERT_HEX_ID = 'C3';
-export const TEMPLATE_HEX_COUNT = HEX_TEMPLATE.length;

@@ -86,6 +86,7 @@ export function viewFor(
     config: {
       playerCount: state.config.playerCount,
       targetVp: state.config.targetVp,
+      map: { ...state.config.map },
     },
     targetVp: state.config.targetVp,
     phase: state.phase,

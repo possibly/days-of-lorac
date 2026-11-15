@@ -1,6 +1,6 @@
 {
   "name": "days-of-lorac",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "description": "Days of Lorac: a Catan-meets-deckbuilder board game for the browser.",

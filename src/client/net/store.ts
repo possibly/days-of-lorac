@@ -5,7 +5,7 @@
  * and the in-browser client in `local.ts`. The build picks one at load, so no
  * screen has to know whether it is playing online or offline.
  */
-import type { BotDifficulty, GameAction, Seat } from '@shared/types';
+import type { BotDifficulty, GameAction, MapSettings, Seat } from '@shared/types';
 import type { ClientSnapshot } from './socket';
 import { onlineClient } from './socket';
 import { LocalClient } from './local';
@@ -17,8 +17,8 @@ export interface GameStore {
   start(): void;
   stop?(): void;
 
-  quickPlay(name: string, seats: 2 | 3 | 4, difficulty: BotDifficulty): void;
-  createRoom(name: string, maxPlayers: 2 | 3 | 4, difficulty: BotDifficulty): void;
+  quickPlay(name: string, seats: 2 | 3 | 4, difficulty: BotDifficulty, map: MapSettings): void;
+  createRoom(name: string, maxPlayers: 2 | 3 | 4, difficulty: BotDifficulty, map: MapSettings): void;
   joinRoom(code: string, name: string): void;
   resumeSession(code: string, token: string): void;
   resumeStored(code: string): boolean;
@@ -26,6 +26,7 @@ export interface GameStore {
   forget(): void;
 
   setReady(ready: boolean): void;
+  setMapSettings(map: MapSettings): void;
   addBot(difficulty: BotDifficulty): void;
   removePlayer(seat: Seat): void;
   startGame(): void;

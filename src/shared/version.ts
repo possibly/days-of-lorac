@@ -5,7 +5,7 @@
  * Keep in sync with package.json `version` (the unit test enforces this).
  * This module must stay pure JS: no DOM, no Node imports.
  */
-export const GAME_VERSION = '0.1.0';
+export const GAME_VERSION = '0.1.1';
 
 /** Short label for UI chrome, e.g. "v0.1.0". */
 export const versionLabel = (): string => `v${GAME_VERSION}`;

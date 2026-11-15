@@ -32,8 +32,10 @@ any screen --> Rules sheet, closes back where it opened
 | Screen | Content | Primary button |
 | --- | --- | --- |
 | Title | wordmark, seal, tagline, three buttons, footer version and socket dot | "Play vs bots" |
-| Solo setup | name, seats 2/3/4, difficulty, "Race to 18/16/14" note | "Start game" |
-| Create room | name, max players 2/3/4, fill difficulty | "Create room" |
+| Solo setup | name, seats 2/3/4, difficulty, island size, land placement, number placement, "Race to N" note | "Start game" |
+| Create room | name, max players 2/3/4, fill difficulty, island size, land placement, number placement | "Create room" |
+| Lobby (host) | seats, island picker (same three rows), invite link, table talk | "Start game" |
+| Lobby (guest) | seats, island summary line, invite link, table talk | "Ready" |
 | Join | name, 4-letter code in caps, locked when it came from a URL | "Join room" |
 | Lobby | code chip, seat grid, ready toggles, host controls, invite link | "Start game" |
 | Game | board, ledger, market, hand, action bar | context button |

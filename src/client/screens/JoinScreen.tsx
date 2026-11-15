@@ -41,7 +41,7 @@ export function JoinScreen({
 
         <label className="field">
           <span>Your name</span>
-          <input value={name} maxLength={24} autoFocus={locked} onChange={(event) => setName(event.target.value)} placeholder="Guild factor" />
+          <input value={name} maxLength={24} autoFocus={locked} onChange={(event) => setName(event.target.value)} placeholder="e.g. Maren" />
         </label>
 
         <div className="field">

@@ -15,5 +15,6 @@ export { bestBankRate } from './legal.js';
 // They are still pure and deterministic; none of them mutate their input.
 export { canAfford, legalCityVertices, legalRoadEdges, legalSettlementVertices } from './legal.js';
 export { cloneState, drawCards } from './state.js';
-export { buildBoard } from './board.js';
+export { buildBoard, desertHexId, portCountFor, portSpecsFor } from './board.js';
+export { generateMap } from './map.js';
 export { nextRandom, randomInt, shuffleWithRng } from './rng.js';

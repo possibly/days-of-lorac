@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { GAME_VERSION } from '@shared/version';
-import type { GameAction, GameView, Seat } from '@shared/types';
+import type { GameAction, GameView, MapSettings, Seat } from '@shared/types';
+import { normalizeMapSettings } from '@shared/map-settings';
 import { client, OFFLINE_MODE } from './net/store';
 import type { LinkState } from './net/store';
 import { useGame } from './net/useGame';
@@ -42,6 +43,12 @@ export default function App(): JSX.Element {
   const fixtureParam = params.get('fixture');
   const fixtureMode = isDev && fixtureParam !== null;
   const fixtureKind: FixtureMode = fixtureParam === 'setup' || fixtureParam === 'discard' || fixtureParam === 'over' || fixtureParam === 'robber' || fixtureParam === 'offer' ? fixtureParam : 'mid';
+  // Dev fixtures can render any island: ?fixture=mid&size=grand&land=balanced
+  const fixtureMap = normalizeMapSettings({
+    size: params.get('size') ?? undefined,
+    terrain: params.get('land') ?? undefined,
+    tokens: params.get('numbers') ?? undefined,
+  });
 
   const [screen, setScreen] = useState<Screen>('title');
   const [name, setName] = useState(() => loadName());
@@ -55,7 +62,7 @@ export default function App(): JSX.Element {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [closed, setClosed] = useState<string | null>(null);
   const [fixture, setFixture] = useState<FixtureSession | null>(null);
-  const fixtureLoader = useRef<((mode: FixtureMode) => FixtureSession) | null>(null);
+  const fixtureLoader = useRef<((mode: FixtureMode, map: MapSettings) => FixtureSession) | null>(null);
   const [fixtureView, setFixtureView] = useState<GameView | null>(null);
   const [busyLabel, setBusyLabel] = useState('Seating the table…');
 
@@ -300,6 +307,7 @@ export default function App(): JSX.Element {
         connected={snapshot.link === 'open'}
         onReady={(ready) => client.setReady(ready)}
         onStart={() => client.startGame()}
+        onMap={(map) => client.setMapSettings(map)}
         onAddBot={(difficulty) => client.addBot(difficulty)}
         onRemove={(seat) => client.removePlayer(seat)}
         onLeave={goTitle}
@@ -397,29 +405,29 @@ export default function App(): JSX.Element {
       const module = await import('./dev/fixture');
       fixtureLoader.current = module.createFixture;
     }
-    const session = fixtureLoader.current(mode);
+    const session = fixtureLoader.current(mode, fixtureMap);
     setFixture(session);
     setFixtureView(session.view);
     setScreen('game');
   }
 
-  function startSolo(person: string, seats: 2 | 3 | 4, difficulty: 'easy' | 'normal' | 'hard'): void {
+  function startSolo(person: string, seats: 2 | 3 | 4, difficulty: 'easy' | 'normal' | 'hard', map: MapSettings): void {
     setName(person);
     saveName(person);
     if (fixtureMode) return;
-    client.quickPlay(person, seats, difficulty);
+    client.quickPlay(person, seats, difficulty, map);
     if (OFFLINE_MODE) return;
     setBusyLabel('Seating the bots…');
     setScreen('connecting');
   }
 
-  function startCreate(person: string, maxPlayers: 2 | 3 | 4, difficulty: 'easy' | 'normal' | 'hard'): void {
+  function startCreate(person: string, maxPlayers: 2 | 3 | 4, difficulty: 'easy' | 'normal' | 'hard', map: MapSettings): void {
     setName(person);
     saveName(person);
     if (fixtureMode) return;
     setBusyLabel('Creating your room…');
     setScreen('connecting');
-    client.createRoom(person, maxPlayers, difficulty);
+    client.createRoom(person, maxPlayers, difficulty, map);
   }
 
   function startJoin(person: string, code: string): void {

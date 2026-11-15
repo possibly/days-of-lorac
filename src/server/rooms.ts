@@ -242,7 +242,7 @@ export function buildLobbyView(room: Room): LobbyView {
     status: room.status,
     hostSeat: room.hostSeat,
     config: { ...room.config },
-    targetVp: targetVpFor(room.config.maxPlayers),
+    targetVp: targetVpFor(room.config.maxPlayers, room.config.map.size),
     players,
   };
 }

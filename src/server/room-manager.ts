@@ -17,10 +17,18 @@ import type {
   BotDifficulty,
   GameAction,
   GameState,
+  MapSettings,
   PartialResources,
   Seat,
 } from '@shared/types';
 import { applyAction, createGame, viewFor } from '@shared/engine/index';
+import {
+  DEFAULT_MAP_SETTINGS,
+  isValidMapSettings,
+  maxSeatsFor,
+  normalizeMapSettings,
+  seatsFit,
+} from '@shared/map-settings';
 import type { ChatMessage, LobbyView, ServerMessage, WireErrorCode } from '@shared/protocol';
 import { chooseBotAction } from './bots/index.js';
 import {
@@ -154,7 +162,7 @@ export class RoomManager {
 
   quickPlay(
     conn: ClientConnection,
-    input: { name: string; seats: 2 | 3 | 4; difficulty: BotDifficulty },
+    input: { name: string; seats: 2 | 3 | 4; difficulty: BotDifficulty; map?: MapSettings },
   ): void {
     const name = sanitizeName(input.name);
     if (!name) return this.error(conn, 'NAME_REQUIRED', 'Pick a name before playing.');
@@ -162,10 +170,18 @@ export class RoomManager {
       return this.error(conn, 'BAD_MESSAGE', 'Choose 2, 3, or 4 seats.');
     }
     const difficulty = difficultyOr(input.difficulty, 'normal');
+    const map = normalizeMapSettings(input.map, DEFAULT_MAP_SETTINGS);
+    if (!seatsFit(map, input.seats)) {
+      return this.error(
+        conn,
+        'INVALID_ROOM',
+        `The ${map.size} island seats ${maxSeatsFor(map.size)}. Choose standard or grand.`,
+      );
+    }
 
     this.detach(conn);
     try {
-      const room = this.newRoom(input.seats, difficulty);
+      const room = this.newRoom(input.seats, difficulty, map);
       const human = this.addHuman(room, 0, name);
       for (let seat = 1; seat < input.seats; seat += 1) this.addBot(room, seat, difficulty);
       room.status = 'playing';
@@ -187,7 +203,7 @@ export class RoomManager {
 
   createRoom(
     conn: ClientConnection,
-    input: { name: string; maxPlayers: 2 | 3 | 4; difficulty: BotDifficulty },
+    input: { name: string; maxPlayers: 2 | 3 | 4; difficulty: BotDifficulty; map?: MapSettings },
   ): void {
     const name = sanitizeName(input.name);
     if (!name) return this.error(conn, 'NAME_REQUIRED', 'Pick a name before creating a room.');
@@ -195,10 +211,18 @@ export class RoomManager {
       return this.error(conn, 'BAD_MESSAGE', 'Rooms hold 2, 3, or 4 players.');
     }
     const difficulty = difficultyOr(input.difficulty, 'normal');
+    const map = normalizeMapSettings(input.map, DEFAULT_MAP_SETTINGS);
+    if (!seatsFit(map, input.maxPlayers)) {
+      return this.error(
+        conn,
+        'INVALID_ROOM',
+        `The ${map.size} island seats ${maxSeatsFor(map.size)}. Choose standard or grand.`,
+      );
+    }
 
     this.detach(conn);
     try {
-      const room = this.newRoom(input.maxPlayers, difficulty);
+      const room = this.newRoom(input.maxPlayers, difficulty, map);
       const host = this.addHuman(room, 0, name);
       host.connected = true;
       host.connection = conn;
@@ -333,6 +357,36 @@ export class RoomManager {
       return this.error(conn, 'ALREADY_STARTED', 'The game has already started.');
     }
     slot.ready = ready;
+    this.broadcastLobby(room);
+  }
+
+  /** Host-only: pick the island before the first card is dealt. */
+  setMapSettings(conn: ClientConnection, map: unknown): void {
+    const found = this.lookup(conn);
+    if (!found) return this.error(conn, 'NOT_IN_ROOM', 'You are not in a room.');
+    const { room, slot } = found;
+    if (room.hostSeat !== slot.seat || slot.isBot) {
+      return this.error(conn, 'NOT_HOST', 'Only the host can set the map.');
+    }
+    if (room.status !== 'lobby') {
+      return this.error(conn, 'ALREADY_STARTED', 'The map is locked once the game starts.');
+    }
+    if (!isValidMapSettings(map)) {
+      return this.error(conn, 'INVALID_ROOM', 'That map setting is not one of the offered islands.');
+    }
+    const next = normalizeMapSettings(map, room.config.map);
+    if (!seatsFit(next, room.config.maxPlayers)) {
+      return this.error(
+        conn,
+        'INVALID_ROOM',
+        `The ${next.size} island seats ${maxSeatsFor(next.size)}, and this table has ${room.config.maxPlayers} seats.`,
+      );
+    }
+    const current = room.config.map;
+    if (next.size === current.size && next.terrain === current.terrain && next.tokens === current.tokens) {
+      return;
+    }
+    room.config.map = next;
     this.broadcastLobby(room);
   }
 
@@ -818,12 +872,12 @@ export class RoomManager {
   // Seats, hosts, timers
   // -------------------------------------------------------------------------
 
-  private newRoom(maxPlayers: 2 | 3 | 4, difficulty: BotDifficulty): Room {
+  private newRoom(maxPlayers: 2 | 3 | 4, difficulty: BotDifficulty, map: MapSettings): Room {
     return {
       code: this.allocateCode(),
       createdAt: this.clock.now(),
       hostSeat: 0,
-      config: { maxPlayers, difficulty },
+      config: { maxPlayers, difficulty, map: { ...map } },
       status: 'lobby',
       seats: [null, null, null, null],
       state: null,
@@ -899,6 +953,7 @@ export class RoomManager {
     }
     return createGame({
       playerCount,
+      map: room.config.map,
       seed: this.nextSeed(),
       // Random, so the public id says nothing about the seed. Bot tie-breaks
       // still work: they hash the id, they do not invert it.

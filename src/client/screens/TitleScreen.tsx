@@ -44,12 +44,8 @@ export function TitleScreen({
     <main className="title-screen">
       <div className="parchment title-panel">
         <GuildSeal size={96} />
-        <p className="eyebrow">Guild charter · merchants of the inland sea</p>
         <h1 className="wordmark">Days of Lorac</h1>
-        <p className="tagline">
-          A board game of hexes, roads, and hard-won decks. Settle the island, build your guild,
-          and be the first to the target.
-        </p>
+        <p className="tagline">A board game of hexes, settlements and deck building.</p>
 
         {!offline && session ? (
           <div className="resume-strip">
@@ -80,7 +76,7 @@ export function TitleScreen({
               <input
                 value={name}
                 maxLength={24}
-                placeholder="Guild factor"
+                placeholder="e.g. Maren"
                 onChange={(event) => onName(event.target.value)}
                 onBlur={() => { if (name.trim()) setShowName(false); }}
                 autoComplete="nickname"
@@ -95,8 +91,6 @@ export function TitleScreen({
 
         <ul className="pillars">
           <li><span className="pillar-title">20–35 min</span><span className="pillar-note">2–4 players</span></li>
-          <li><span className="pillar-title">19 hexes</span><span className="pillar-note">one island, nine ports</span></li>
-          <li><span className="pillar-title">Personal decks</span><span className="pillar-note">buy, cycle, score</span></li>
         </ul>
       </div>
 

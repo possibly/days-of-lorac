@@ -735,3 +735,25 @@ describe('balance simulator', () => {
     expect(text).toContain('stalls: 0');
   });
 });
+describe('bot policy: map sizes', () => {
+  it('plays a clean full game on compact and grand islands', () => {
+    for (const [size, players] of [
+      ['compact', 2],
+      ['grand', 4],
+    ] as Array<['compact' | 'grand', number]>) {
+      for (const seed of [501, 502]) {
+        const initial = createGame({
+          playerCount: players,
+          seed,
+          bots: Array.from({ length: players }, () => true),
+          difficulties: Array.from({ length: players }, () => 'normal' as const),
+          map: { size, terrain: 'balanced', tokens: 'balanced' },
+        });
+        const played = playOutGame(initial, () => 'normal', 6000);
+        expect(played.rejected, `${size} seed ${seed} rejected`).toBe(0);
+        expect(played.stall, `${size} seed ${seed} stalled`).toBeNull();
+        expect(played.state.phase).toBe('gameOver');
+      }
+    }
+  }, 30_000);
+});

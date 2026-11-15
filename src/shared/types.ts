@@ -25,6 +25,25 @@ export type BotDifficulty = 'easy' | 'normal' | 'hard';
 export type BuildingType = 'settlement' | 'city';
 
 // ---------------------------------------------------------------------------
+// Map settings (chosen by the host before the game starts)
+// ---------------------------------------------------------------------------
+
+export type MapSize = 'compact' | 'standard' | 'grand';
+export type TerrainMode = 'fixed' | 'balanced' | 'shuffled';
+export type TokenMode = 'fixed' | 'balanced' | 'shuffled';
+
+/**
+ * How the island is laid out. `size` picks the hex count and shape, `terrain`
+ * and `tokens` pick how the land and the number chips are placed. Every mode is
+ * seeded, so the same seed and settings rebuild the same island.
+ */
+export interface MapSettings {
+  size: MapSize;
+  terrain: TerrainMode;
+  tokens: TokenMode;
+}
+
+// ---------------------------------------------------------------------------
 // Board
 // ---------------------------------------------------------------------------
 
@@ -241,6 +260,7 @@ export interface LogEntry {
 export interface PublicGameConfig {
   playerCount: number;
   targetVp: number;
+  map: MapSettings;
 }
 
 /** Server-side config. `seed` stays on `GameState` and never on the wire. */
@@ -472,6 +492,8 @@ export interface GameView {
 export interface CreateGameOptions {
   playerCount: number;
   seed: number;
+  /** Board size and placement. Defaults to the classic fixed island. */
+  map?: MapSettings;
   /**
    * Public game id. Defaults to `lorac-${seed}-${playerCount}`, which the
    * balance simulator relies on for deterministic bot tie-breaks. The server

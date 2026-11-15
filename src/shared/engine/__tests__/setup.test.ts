@@ -40,7 +40,10 @@ describe('setup', () => {
     expect(state.version).toBe(0);
     expect(state.currentSeat).toBe(state.firstSeat);
     expect(state.setup?.step).toBe('settlement');
+    // Default settings mean the designed island: the desert sits at centre, C3.
+    expect(state.config.map).toEqual({ size: 'standard', terrain: 'fixed', tokens: 'fixed' });
     expect(state.robberHex).toBe('C3');
+    expect(state.board.hexes.find((hex) => hex.id === state.robberHex)?.terrain).toBe('desert');
     for (const player of state.players) {
       expect(player.resources).toEqual({ wood: 0, brick: 0, sheep: 0, wheat: 0, ore: 0 });
       expect(player.hand).toHaveLength(0);

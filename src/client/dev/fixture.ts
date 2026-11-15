@@ -4,7 +4,8 @@
  * then hands the viewer a few choice cards so every flow can be inspected.
  */
 import { applyAction, createGame, legalMoves, refreshDerived, viewFor } from '@shared/engine';
-import type { GameAction, GameState, GameView } from '@shared/types';
+import { DEFAULT_MAP_SETTINGS } from '@shared/map-settings';
+import type { BotDifficulty, GameAction, GameState, GameView, MapSettings } from '@shared/types';
 
 export interface FixtureSession {
   view: GameView;
@@ -148,13 +149,19 @@ function injectShowcaseHand(state: GameState): GameState {
 
 export type FixtureMode = 'setup' | 'mid' | 'discard' | 'over' | 'robber' | 'offer';
 
-export function createFixture(mode: FixtureMode = 'mid'): FixtureSession {
+/**
+ * Dev fixture. `?fixture=mid&size=compact` renders a small island; the compact
+ * board seats two, so the other seats drop away.
+ */
+export function createFixture(mode: FixtureMode = 'mid', map: MapSettings = DEFAULT_MAP_SETTINGS): FixtureSession {
+  const playerCount = map.size === 'compact' ? 2 : 4;
   let state = createGame({
-    playerCount: 4,
+    playerCount,
+    map,
     seed: 4242,
-    names: ['Maren', 'Kell', 'Osric', 'Tally'],
-    bots: [false, true, true, true],
-    difficulties: [null, 'normal', 'normal', 'hard'],
+    names: ['Maren', 'Kell', 'Osric', 'Tally'].slice(0, playerCount),
+    bots: [false, true, true, true].slice(0, playerCount),
+    difficulties: ([null, 'normal', 'normal', 'hard'] as (BotDifficulty | null)[]).slice(0, playerCount),
   });
   if (mode === 'setup') {
     return fixtureFrom(state);

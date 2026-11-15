@@ -3,6 +3,7 @@ import type {
   BotDifficulty,
   GameAction,
   GameView,
+  MapSettings,
   Seat,
 } from './types.js';
 
@@ -13,6 +14,8 @@ export type RoomStatus = 'lobby' | 'playing' | 'finished';
 export interface RoomConfig {
   maxPlayers: 2 | 3 | 4;
   difficulty: BotDifficulty;
+  /** Host-chosen island size and placement. Editable until the game starts. */
+  map: MapSettings;
 }
 
 export interface LobbyPlayer {
@@ -60,17 +63,25 @@ export type WireErrorCode =
 
 export type ClientMessage =
   | { type: 'ping'; t?: number }
-  | { type: 'quickPlay'; name: string; seats: 2 | 3 | 4; difficulty: BotDifficulty }
+  | {
+      type: 'quickPlay';
+      name: string;
+      seats: 2 | 3 | 4;
+      difficulty: BotDifficulty;
+      map?: MapSettings;
+    }
   | {
       type: 'createRoom';
       name: string;
       maxPlayers: 2 | 3 | 4;
       difficulty: BotDifficulty;
+      map?: MapSettings;
     }
   | { type: 'joinRoom'; code: string; name: string }
   | { type: 'resume'; code: string; token: string }
   | { type: 'leaveRoom' }
   | { type: 'setReady'; ready: boolean }
+  | { type: 'setMapSettings'; map: MapSettings }
   | { type: 'addBot'; difficulty?: BotDifficulty }
   | { type: 'removePlayer'; seat: Seat }
   | { type: 'startGame' }

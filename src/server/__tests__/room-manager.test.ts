@@ -931,6 +931,61 @@ describe('chat', () => {
   });
 });
 
+describe('map settings', () => {
+  it('lets only the host change the island, and builds it when the game starts', () => {
+    const context = makeManager();
+    const { code, conns } = makeRoom(context, { seats: 2, humans: 2 });
+    const host = conns[0] as FakeConn;
+    const guest = conns[1] as FakeConn;
+
+    context.manager.setMapSettings(host, { size: 'compact', terrain: 'shuffled', tokens: 'balanced' });
+    expect(host.last('lobby')?.room.config.map).toEqual({
+      size: 'compact',
+      terrain: 'shuffled',
+      tokens: 'balanced',
+    });
+    // The guest sees the change on the next broadcast.
+    expect(guest.last('lobby')?.room.config.map.size).toBe('compact');
+
+    context.manager.setMapSettings(guest, { size: 'grand', terrain: 'fixed', tokens: 'fixed' });
+    expect(errorCode(guest)).toBe('NOT_HOST');
+    expect(stateOf(context.manager, code).config.map).toEqual({
+      size: 'compact',
+      terrain: 'shuffled',
+      tokens: 'balanced',
+    });
+
+    context.manager.setReady(guest, true);
+    context.manager.startGame(host);
+    const room = stateOf(context.manager, code);
+    expect(room.state?.board.hexes).toHaveLength(7);
+    expect(room.state?.config.map.size).toBe('compact');
+    expect(room.state?.board.hexes.find((hex) => hex.id === room.state?.robberHex)?.terrain).toBe(
+      'desert',
+    );
+  });
+
+  it('refuses a map that is not one of the offered islands', () => {
+    const context = makeManager();
+    const { conns } = makeRoom(context, { seats: 2, humans: 1 });
+    const host = conns[0] as FakeConn;
+    context.manager.setMapSettings(host, { size: 'huge', terrain: 'fixed', tokens: 'fixed' });
+    expect(errorCode(host)).toBe('INVALID_ROOM');
+  });
+
+  it('locks the map once the game is running', () => {
+    const context = makeManager();
+    const { code, conns } = makeRoom(context, { seats: 2, humans: 2 });
+    const host = conns[0] as FakeConn;
+    const guest = conns[1] as FakeConn;
+    context.manager.setReady(guest, true);
+    context.manager.startGame(host);
+    expect(stateOf(context.manager, code).status).toBe('playing');
+    context.manager.setMapSettings(host, { size: 'grand', terrain: 'fixed', tokens: 'fixed' });
+    expect(errorCode(host)).toBe('ALREADY_STARTED');
+  });
+});
+
 describe('room metadata', () => {  it('reports share-link info without leaking tokens', () => {
     const context = makeManager();
     const { code } = makeRoom(context, { seats: 3, humans: 2 });
@@ -938,7 +993,7 @@ describe('room metadata', () => {  it('reports share-link info without leaking t
     expect(info?.room.status).toBe('lobby');
     expect(info?.canJoin).toBe(true);
     expect(info?.room.players.map((player) => player.name)).toEqual(['Ada', 'Player 2']);
-    expect(JSON.stringify(info)).not.toContain('token');
+    expect(JSON.stringify(info)).not.toContain('"token"');
 
     expect(context.manager.roomInfo('ZZZZ')).toBeNull();
     expect(context.manager.roomInfo('../etc')).toBeNull();

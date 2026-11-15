@@ -1,6 +1,6 @@
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
-import { VP_TARGETS } from '@shared/constants';
+import { VP_TARGETS, VP_TARGET_SHIFT } from '@shared/constants';
 
 /** Rules sheet. Two columns, system fonts, closes back where it opened. */
 export function RulesSheet({ onClose }: { onClose: () => void }): JSX.Element {
@@ -15,7 +15,7 @@ export function RulesSheet({ onClose }: { onClose: () => void }): JSX.Element {
       <div className="rules-columns">
         <section>
           <h3>Goal</h3>
-          <p>Be first to the victory target: {VP_TARGETS[4]} points with four players, {VP_TARGETS[3]} with three, {VP_TARGETS[2]} with two.</p>
+          <p>Be first to the victory target: {VP_TARGETS[4]} points with four players, {VP_TARGETS[3]} with three, {VP_TARGETS[2]} with two. A compact island takes {Math.abs(VP_TARGET_SHIFT.compact)} points off the target and a grand island adds {VP_TARGET_SHIFT.grand}, because board space is the easiest victory point to find.</p>
           <h3>Turn</h3>
           <p>Draw to five. Roll 2d6. Then play cards, build, trade, and buy one card. Played cards go to your discard at end of turn. Unplayed cards stay in your hand, but every kept card is one less card you draw next turn.</p>
           <h3>Production</h3>

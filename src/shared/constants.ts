@@ -1,4 +1,4 @@
-import type { PartialResources, Resource } from './types.js';
+import type { MapSize, PartialResources, Resource } from './types.js';
 
 export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 4;
@@ -15,10 +15,21 @@ export const VP_TARGETS: Record<2 | 3 | 4, number> = {
   4: 14,
 };
 
-export function targetVpFor(playerCount: number): number {
-  if (playerCount <= 2) return VP_TARGETS[2];
-  if (playerCount === 3) return VP_TARGETS[3];
-  return VP_TARGETS[4];
+/**
+ * Small islands produce less board VP, so the race is shorter there; a grand
+ * island gives every seat more corners to build on, so the race is longer.
+ * Without this the compact island cannot reach the standard target no matter
+ * how long the table plays.
+ */
+export const VP_TARGET_SHIFT: Record<MapSize, number> = {
+  compact: -4,
+  standard: 0,
+  grand: 4,
+};
+
+export function targetVpFor(playerCount: number, size: MapSize = 'standard'): number {
+  const base = playerCount <= 2 ? VP_TARGETS[2] : playerCount === 3 ? VP_TARGETS[3] : VP_TARGETS[4];
+  return base + (VP_TARGET_SHIFT[size] ?? 0);
 }
 
 export const BUILD_COSTS = {

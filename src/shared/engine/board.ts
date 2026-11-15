@@ -1,10 +1,10 @@
 /**
- * Board construction: the fixed 19-hex template, one of twelve seeded
- * orientations, the 54-vertex / 72-edge graph, and the 9-port ring.
+ * Board construction: a generated layout, one of twelve seeded orientations,
+ * the vertex/edge graph, and the port ring.
  *
- * Geometry is pointy-top axial with hex size 1 and corners at
- * 30 + 60k degrees. A lattice point is stored as the exact integer pair
- * (u, v) with world position
+ * Geometry is pointy-top axial with hex size 1 and corners at 30 + 60k
+ * degrees. A lattice point is stored as the exact integer pair (u, v) with
+ * world position
  *
  *   x = (sqrt(3) / 2) * u,  y = v / 2
  *
@@ -13,19 +13,23 @@
  * Hex corners for axial (q, r) are (2q + r + du, 3r + dv) with the offsets
  * below; rotations and mirrors are integer maps on (u, v).
  *
- * Ids are derived from the canonical (unrotated) template and never move:
- * vertices are `v1..v54`, edges `e1..e72`, ports `port-0..port-8`. Terrain and
- * number tokens stay attached to their hex ids, so an orientation rotates the
- * island geometry (and the port ring with it) and leaves the terrain table
- * intact.
+ * Ids are derived from the shape and never move: a hex is its row letter plus
+ * its column number (row A is the top row, column 1 the leftmost hex of that
+ * row), vertices are `v1..vN` in sorted lattice order, edges `e1..eM`, ports
+ * `port-0..`. Terrain and number tokens stay attached to their coordinates, so
+ * an orientation rotates the island geometry (and the port ring with it) and
+ * leaves the layout table intact.
  */
-import { HEX_TEMPLATE, PORT_ORDER } from '../board-template.js';
+import { PORT_ORDER } from '../board-template.js';
+import { hexCoordsFor, hexCountFor, mapSizeInfo } from '../map-settings.js';
+import type { MapLayout, MapHex } from './map.js';
 import type {
   Board,
   Edge,
   EdgeId,
   Hex,
   HexId,
+  MapSize,
   Port,
   Vertex,
   VertexId,
@@ -92,33 +96,53 @@ function edgeId(index: number): EdgeId {
   return `e${index + 1}`;
 }
 
+/** Row letter + column number, e.g. `C3` for the middle of a standard island. */
+function hexIdsFor(hexes: readonly MapHex[]): HexId[] {
+  const rows = new Map<number, number[]>();
+  hexes.forEach((hex, index) => {
+    const row = rows.get(hex.r) ?? [];
+    row.push(index);
+    rows.set(hex.r, row);
+  });
+  const ids: HexId[] = hexes.map(() => '');
+  const rowOrder = [...rows.keys()].sort((a, b) => a - b);
+  rowOrder.forEach((r, rowIndex) => {
+    const members = (rows.get(r) ?? []).slice().sort((a, b) => (hexes[a] as MapHex).q - (hexes[b] as MapHex).q);
+    const letter = String.fromCharCode(65 + rowIndex);
+    members.forEach((hexIndex, column) => {
+      ids[hexIndex] = `${letter}${column + 1}`;
+    });
+  });
+  return ids;
+}
+
 interface BaseGraph {
   /** Sorted canonical vertices. */
   vertices: Uv[];
   vertexIndex: Map<string, number>;
-  /** For each hex (template order), its six corner vertex indices. */
+  /** For each hex (layout order), its six corner vertex indices. */
   hexCorners: number[][];
   /** For each hex, its six side edge indices (side k is corner k -> k + 1). */
   hexEdges: number[][];
   /** For each edge, the two vertex indices with the lower one first. */
   edgeVertices: Array<[number, number]>;
-  /** For each edge, the hexes that touch it, in template order. */
+  /** For each edge, the hexes that touch it, in layout order. */
   edgeHexes: HexId[][];
+  /** Boundary edges, clockwise from the top-left edge. */
+  coastalRing: number[];
 }
 
-function buildBaseGraph(): BaseGraph {
-  const vertexMap = new Map<string, Uv>();
-  const hexCorners: number[][] = [];
+const graphCache = new Map<MapSize, BaseGraph>();
 
-  for (const hex of HEX_TEMPLATE) {
-    const corners: number[] = [];
+function buildBaseGraph(size: MapSize, hexIds: readonly HexId[], hexes: readonly MapHex[]): BaseGraph {
+  const vertexMap = new Map<string, Uv>();
+
+  for (const hex of hexes) {
     for (let k = 0; k < 6; k += 1) {
       const uv = cornerUv(hex.q, hex.r, k);
       const key = uvKey(uv);
       if (!vertexMap.has(key)) vertexMap.set(key, uv);
-      corners.push(k);
     }
-    hexCorners.push(corners);
   }
 
   // Collect vertices first so indices are assigned in canonical sorted order.
@@ -127,27 +151,22 @@ function buildBaseGraph(): BaseGraph {
   const vertexIndex = new Map<string, number>();
   raw.forEach((uv, index) => vertexIndex.set(uvKey(uv), index));
 
-  // Rebuild hex corners with real indices.
-  for (let h = 0; h < HEX_TEMPLATE.length; h += 1) {
-    const hex = HEX_TEMPLATE[h] as (typeof HEX_TEMPLATE)[number];
+  const hexCorners: number[][] = hexes.map((hex) => {
     const corners: number[] = [];
     for (let k = 0; k < 6; k += 1) {
-      const uv = cornerUv(hex.q, hex.r, k);
-      const index = vertexIndex.get(uvKey(uv));
+      const index = vertexIndex.get(uvKey(cornerUv(hex.q, hex.r, k)));
       if (index === undefined) throw new Error('board: corner missing from vertex map');
       corners.push(index);
     }
-    hexCorners[h] = corners;
-  }
+    return corners;
+  });
 
   const edgeMap = new Map<string, number>();
   const edgeVertices: Array<[number, number]> = [];
   const edgeHexes: HexId[][] = [];
   const hexEdges: number[][] = [];
 
-  for (let h = 0; h < HEX_TEMPLATE.length; h += 1) {
-    const hex = HEX_TEMPLATE[h] as (typeof HEX_TEMPLATE)[number];
-    const corners = hexCorners[h] as number[];
+  hexCorners.forEach((corners, h) => {
     const sides: number[] = [];
     for (let k = 0; k < 6; k += 1) {
       const a = corners[k] as number;
@@ -163,11 +182,12 @@ function buildBaseGraph(): BaseGraph {
         edgeHexes.push([]);
       }
       const owners = edgeHexes[index] as HexId[];
-      if (!owners.includes(hex.id)) owners.push(hex.id);
+      const id = hexIds[h] as HexId;
+      if (!owners.includes(id)) owners.push(id);
       sides.push(index);
     }
     hexEdges[h] = sides;
-  }
+  });
 
   // Sort edge indices by their vertex pair, then renumber references.
   const order = edgeVertices.map((_, index) => index);
@@ -186,7 +206,7 @@ function buildBaseGraph(): BaseGraph {
     sortedEdgeHexes.push(edgeHexes[oldIndex] as HexId[]);
   });
 
-  return {
+  const base = {
     vertices: raw,
     vertexIndex,
     hexCorners,
@@ -194,16 +214,31 @@ function buildBaseGraph(): BaseGraph {
     edgeVertices: sortedEdgeVertices,
     edgeHexes: sortedEdgeHexes,
   };
+  return { ...base, coastalRing: buildCoastalRing(base) };
 }
 
-const BASE_GRAPH = buildBaseGraph();
+function graphFor(size: MapSize, hexIds: readonly HexId[], hexes: readonly MapHex[]): BaseGraph {
+  // The graph cache is keyed by size, so every layout of a size has to arrive
+  // in the same row-major order the generator uses.
+  const expected = hexCoordsFor(size);
+  if (
+    hexes.length !== hexCountFor(size) ||
+    hexes.some((hex, index) => hex.q !== expected[index]?.q || hex.r !== expected[index]?.r)
+  ) {
+    throw new Error(`board: ${size} layout is not in generated order`);
+  }
+  const cached = graphCache.get(size);
+  if (cached) return cached;
+  const built = buildBaseGraph(size, hexIds, hexes);
+  graphCache.set(size, built);
+  return built;
+}
 
 /** Boundary (single-hex) edges, ordered clockwise from the top-left edge. */
-function buildCoastalRing(base: BaseGraph): number[] {
+function buildCoastalRing(base: Omit<BaseGraph, 'coastalRing'>): number[] {
   const coastal: number[] = [];
   base.edgeVertices.forEach((vertices, index) => {
-    const hexes = base.edgeHexes[index] as HexId[];
-    if (hexes.length === 1) coastal.push(index);
+    if ((base.edgeHexes[index] as HexId[]).length === 1) coastal.push(index);
   });
 
   const verticesOfEdge = (index: number): [number, number] => base.edgeVertices[index] as [number, number];
@@ -279,17 +314,52 @@ function buildCoastalRing(base: BaseGraph): number[] {
   return backward;
 }
 
-const COASTAL_RING = buildCoastalRing(BASE_GRAPH);
+/** Port count that keeps the classic ring at nine and scales with the coast. */
+export function portCountFor(coastalEdges: number): number {
+  return Math.max(4, Math.min(12, Math.round(coastalEdges * 0.3)));
+}
 
-/** Every second coastal edge would need 18 of them; a 19-hex island has 30. */
-export const COASTAL_EDGE_COUNT = COASTAL_RING.length;
+interface PortSpec {
+  resource: Port['resource'];
+  rate: 2 | 3;
+}
 
-/** Build the finished board for one orientation. */
-export function buildBoard(orientation: Orientation): Board {
-  const base = BASE_GRAPH;
+const PORT_RESOURCE_ORDER = ['ore', 'wheat', 'brick', 'sheep', 'wood'] as const;
+
+/**
+ * Generic and resource ports interleaved around the ring. Nine ports give
+ * exactly the design doc's order; other sizes keep the same 3:1 / 2:1 mix and
+ * spacing.
+ */
+export function portSpecsFor(count: number): PortSpec[] {
+  if (count === PORT_ORDER.length) return PORT_ORDER.map((spec) => ({ ...spec }));
+  const genericCount = Math.max(1, Math.min(count - 1, Math.round((count * 4) / 9)));
+  const generic = new Set<number>();
+  for (let index = 0; index < genericCount; index += 1) {
+    generic.add((Math.floor((index * count) / genericCount) + 1) % count);
+  }
+  const specs: PortSpec[] = [];
+  let resourceIndex = 0;
+  for (let index = 0; index < count; index += 1) {
+    if (generic.has(index)) {
+      specs.push({ resource: 'generic', rate: 3 });
+    } else {
+      const resource = PORT_RESOURCE_ORDER[resourceIndex % PORT_RESOURCE_ORDER.length] as Port['resource'];
+      resourceIndex += 1;
+      specs.push({ resource, rate: 2 });
+    }
+  }
+  return specs;
+}
+
+/** Build the finished board for one layout and orientation. */
+export function buildBoard(layout: MapLayout, orientation: Orientation): Board {
+  const hexesIn = layout.hexes;
+  const ids = hexIdsFor(hexesIn);
+  const base = graphFor(layout.size, ids, hexesIn);
+
   const hexPositions: Array<{ q: number; r: number; x: number; y: number }> = [];
-
-  for (const hex of HEX_TEMPLATE) {
+  for (const hex of hexesIn) {
     const oriented = orientUv(centerUv(hex.q, hex.r), orientation);
     const r = Math.round(oriented.v / 3);
     const q = Math.round((oriented.u - r) / 2);
@@ -306,15 +376,15 @@ export function buildBoard(orientation: Orientation): Board {
     (vertexEdges[b] as number[]).push(index);
   });
 
-  HEX_TEMPLATE.forEach((hex, h) => {
+  hexesIn.forEach((_, h) => {
     for (const vertex of base.hexCorners[h] as number[]) {
-      (vertexHexes[vertex] as HexId[]).push(hex.id);
+      (vertexHexes[vertex] as HexId[]).push(ids[h] as HexId);
     }
   });
 
   const hexNeighbors = new Map<HexId, HexId[]>();
   const hexAt = new Map<string, HexId>();
-  for (const hex of HEX_TEMPLATE) hexAt.set(`${hex.q},${hex.r}`, hex.id);
+  hexesIn.forEach((hex, h) => hexAt.set(`${hex.q},${hex.r}`, ids[h] as HexId));
   const DIRS: ReadonlyArray<[number, number]> = [
     [1, 0],
     [1, -1],
@@ -323,19 +393,19 @@ export function buildBoard(orientation: Orientation): Board {
     [-1, 1],
     [0, 1],
   ];
-  for (const hex of HEX_TEMPLATE) {
+  hexesIn.forEach((hex, h) => {
     const neighbors: HexId[] = [];
     for (const [dq, dr] of DIRS) {
       const id = hexAt.get(`${hex.q + dq},${hex.r + dr}`);
       if (id !== undefined) neighbors.push(id);
     }
-    hexNeighbors.set(hex.id, neighbors);
-  }
+    hexNeighbors.set(ids[h] as HexId, neighbors);
+  });
 
-  const hexes: Hex[] = HEX_TEMPLATE.map((hex, h) => {
+  const hexes: Hex[] = hexesIn.map((hex, h) => {
     const pos = hexPositions[h] as { q: number; r: number; x: number; y: number };
     return {
-      id: hex.id,
+      id: ids[h] as HexId,
       q: pos.q,
       r: pos.r,
       x: pos.x,
@@ -344,7 +414,7 @@ export function buildBoard(orientation: Orientation): Board {
       token: hex.token,
       vertices: (base.hexCorners[h] as number[]).map((index) => vertexId(index)),
       edges: (base.hexEdges[h] as number[]).map((index) => edgeId(index)),
-      neighbors: hexNeighbors.get(hex.id) ?? [],
+      neighbors: hexNeighbors.get(ids[h] as HexId) ?? [],
     };
   });
 
@@ -370,19 +440,19 @@ export function buildBoard(orientation: Orientation): Board {
     };
   });
 
-  // Ports: 9 evenly spaced around the coastal ring. The design text says "every
-  // second coastal edge", which presumes 18; the island has 30, and evenly
-  // spacing 9 ports keeps the intended 3-or-4-edge gaps and the 2:1 / 3:1 mix.
+  // Ports sit on coastal edges, evenly spaced around the ring and pushed
+  // seaward for the label.
+  const specs = portSpecsFor(portCountFor(base.coastalRing.length));
   const ports: Port[] = [];
-  for (let i = 0; i < PORT_ORDER.length; i += 1) {
-    const ringIndex = Math.round((i * COASTAL_RING.length) / PORT_ORDER.length) % COASTAL_RING.length;
-    const edgeIndex = COASTAL_RING[ringIndex] as number;
+  for (let i = 0; i < specs.length; i += 1) {
+    const ringIndex = Math.round((i * base.coastalRing.length) / specs.length) % base.coastalRing.length;
+    const edgeIndex = base.coastalRing[ringIndex] as number;
     const [a, b] = base.edgeVertices[edgeIndex] as [number, number];
     const pa = vertexPositions[a] as { x: number; y: number };
     const pb = vertexPositions[b] as { x: number; y: number };
     const mid = { x: (pa.x + pb.x) / 2, y: (pa.y + pb.y) / 2 };
     const length = Math.hypot(mid.x, mid.y) || 1;
-    const spec = PORT_ORDER[i] as { resource: Port['resource']; rate: 2 | 3 };
+    const spec = specs[i] as PortSpec;
     ports.push({
       id: `port-${i}`,
       resource: spec.resource,
@@ -395,6 +465,21 @@ export function buildBoard(orientation: Orientation): Board {
   }
 
   return { hexes, vertices, edges, ports };
+}
+
+/** The desert hex the robber starts on: the first one in id order. */
+export function desertHexId(board: Board): HexId {
+  let chosen: HexId | null = null;
+  for (const hex of board.hexes) {
+    if (hex.terrain !== 'desert') continue;
+    if (chosen === null || hex.id < chosen) chosen = hex.id;
+  }
+  return chosen ?? ((board.hexes[0] as Hex).id as HexId);
+}
+
+/** Board radius in hexes, for UI copy and tests. */
+export function boardRadius(size: MapSize): number {
+  return mapSizeInfo(size).radius;
 }
 
 export interface BoardIndex {

@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import type { LobbyView } from '@shared/protocol';
 import type { ChatMessage } from '@shared/protocol';
-import type { BotDifficulty, Seat } from '@shared/types';
+import type { BotDifficulty, MapSettings, Seat } from '@shared/types';
+import { describeMap } from '@shared/map-settings';
 import { Button } from '../ui/Button';
+import { MapSettingsForm } from '../ui/MapSettingsForm';
 import { SeatCoin } from '../ui/SeatCoin';
 import { copyText } from '../ui/clipboard';
 import type { CopyResult } from '../ui/clipboard';
@@ -14,6 +16,7 @@ interface LobbyScreenProps {
   connected: boolean;
   onReady: (ready: boolean) => void;
   onStart: () => void;
+  onMap: (map: MapSettings) => void;
   onAddBot: (difficulty: BotDifficulty) => void;
   onRemove: (seat: Seat) => void;
   onLeave: () => void;
@@ -28,6 +31,7 @@ export function LobbyScreen({
   connected,
   onReady,
   onStart,
+  onMap,
   onAddBot,
   onRemove,
   onLeave,
@@ -36,6 +40,9 @@ export function LobbyScreen({
 }: LobbyScreenProps): JSX.Element {
   const [copyState, setCopyState] = useState<CopyResult | null>(null);
   const [text, setText] = useState('');
+  // The server owns the map setting. The draft keeps rapid clicks from
+  // snapping back to the last broadcast while a change is in flight.
+  const [mapDraft, setMapDraft] = useState<MapSettings>(lobby.config.map);
   const link = useRef<HTMLInputElement>(null);
   const me = lobby.players.find((player) => player.seat === you);
   const isHost = lobby.hostSeat === you;
@@ -45,6 +52,10 @@ export function LobbyScreen({
   const guests = lobby.players.filter((player) => !player.isBot && player.seat !== lobby.hostSeat);
   const allGuestsReady = guests.every((player) => player.ready);
   const invite = typeof window === 'undefined' ? '' : `${window.location.origin}${window.location.pathname}?room=${lobby.code}`;
+
+  useEffect(() => {
+    setMapDraft(lobby.config.map);
+  }, [lobby.config.map.size, lobby.config.map.terrain, lobby.config.map.tokens]);
 
   useEffect(() => {
     if (!copyState) return undefined;
@@ -77,6 +88,7 @@ export function LobbyScreen({
           <p className="eyebrow">Guild table</p>
           <h1 className="panel-title">Room <span className="room-code big-code">{lobby.code}</span></h1>
           <p className="lobby-sub">Race to {lobby.targetVp} · {lobby.config.maxPlayers} seats · fill difficulty {lobby.config.difficulty}</p>
+          <p className="lobby-sub lobby-map-line">{describeMap(lobby.config.map)}</p>
         </div>
         <div className="lobby-head-actions">
           <Button variant="secondary" onClick={copy} title={invite}>
@@ -130,6 +142,23 @@ export function LobbyScreen({
                 </article>
               );
             })}
+          </div>
+
+          <div className="lobby-map">
+            <h2 className="panel-title small">Island</h2>
+            {isHost ? (
+              <MapSettingsForm
+                value={mapDraft}
+                maxSeats={lobby.config.maxPlayers}
+                disabled={!connected}
+                onChange={(next) => {
+                  setMapDraft(next);
+                  onMap(next);
+                }}
+              />
+            ) : (
+              <p className="map-note">The host picks the island size, land, and numbers. Changes show up here before the start.</p>
+            )}
           </div>
 
           <div className="lobby-controls">

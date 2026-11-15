@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import type { BotDifficulty } from '@shared/types';
-import { VP_TARGETS } from '@shared/constants';
+import type { BotDifficulty, MapSettings } from '@shared/types';
+import { targetVpFor } from '@shared/constants';
+import { DEFAULT_MAP_SETTINGS, maxSeatsFor } from '@shared/map-settings';
 import { Button } from '../ui/Button';
+import { MapSettingsForm } from '../ui/MapSettingsForm';
 
 export function SoloSetupScreen({
   initialName,
@@ -10,14 +12,16 @@ export function SoloSetupScreen({
   onRules,
 }: {
   initialName: string;
-  onStart: (name: string, seats: 2 | 3 | 4, difficulty: BotDifficulty) => void;
+  onStart: (name: string, seats: 2 | 3 | 4, difficulty: BotDifficulty, map: MapSettings) => void;
   onBack: () => void;
   onRules: () => void;
 }): JSX.Element {
   const [name, setName] = useState(initialName);
   const [seats, setSeats] = useState<2 | 3 | 4>(4);
   const [difficulty, setDifficulty] = useState<BotDifficulty>('normal');
-  const target = VP_TARGETS[seats];
+  const [map, setMap] = useState<MapSettings>(DEFAULT_MAP_SETTINGS);
+  const target = targetVpFor(seats, map.size);
+  const maxSeats = maxSeatsFor(map.size);
   const ready = name.trim().length > 0;
 
   return (
@@ -26,7 +30,7 @@ export function SoloSetupScreen({
         className="parchment setup-panel"
         onSubmit={(event) => {
           event.preventDefault();
-          if (ready) onStart(name.trim(), seats, difficulty);
+          if (ready) onStart(name.trim(), seats, difficulty, map);
         }}
       >
         <p className="eyebrow">Solo table</p>
@@ -35,13 +39,21 @@ export function SoloSetupScreen({
 
         <label className="field">
           <span>Your name</span>
-          <input value={name} maxLength={24} autoFocus onChange={(event) => setName(event.target.value)} placeholder="Guild factor" />
+          <input value={name} maxLength={24} autoFocus onChange={(event) => setName(event.target.value)} placeholder="e.g. Maren" />
         </label>
 
         <fieldset className="choice-row">
           <legend>Seats</legend>
           {([2, 3, 4] as const).map((count) => (
-            <button key={count} type="button" className={`choice${seats === count ? ' is-on' : ''}`} onClick={() => setSeats(count)} aria-pressed={seats === count}>
+            <button
+              key={count}
+              type="button"
+              className={`choice${seats === count ? ' is-on' : ''}`}
+              onClick={() => setSeats(count)}
+              aria-pressed={seats === count}
+              disabled={count > maxSeats}
+              title={count > maxSeats ? `The ${map.size} island seats ${maxSeats}.` : undefined}
+            >
               <b>{count}</b>
               <span>{count === 2 ? 'duel' : count === 3 ? 'table' : 'full house'}</span>
             </button>
@@ -57,6 +69,14 @@ export function SoloSetupScreen({
             </button>
           ))}
         </fieldset>
+
+        <MapSettingsForm
+          value={map}
+          onChange={(next) => {
+            setMap(next);
+            if (seats > maxSeatsFor(next.size)) setSeats(2);
+          }}
+        />
 
         <p className="target-note">
           <b>Race to {target}.</b> {seats}-player target. Victory is checked after every action.

@@ -2,8 +2,9 @@
  * Game creation, state cloning, and small shared state helpers.
  *
  * `createGame` consumes randomness in this fixed order:
- *   1. board rotation (one draw), 2. board mirror (one draw), 3. first seat
- *   (one draw), 4. one shuffle per player, in seat order, for the 10-card
+ *   1. board rotation (one draw), 2. board mirror (one draw), 3. map generation
+ *   (variable draws, none when terrain and tokens are fixed), 4. first seat
+ *   (one draw), 5. one shuffle per player, in seat order, for the 10-card
  *   starting decks.
  * The robber starts on the desert, the market is stocked to printed counts, and
  * the snake setup order is built from the seeded first seat. Hands are drawn (5
@@ -19,7 +20,7 @@ import {
   targetVpFor,
 } from '../constants.js';
 import { PURCHASABLE_CARDS, getCard } from '../cards.js';
-import { DESERT_HEX_ID } from '../board-template.js';
+import { DEFAULT_MAP_SETTINGS, maxSeatsFor, normalizeMapSettings } from '../map-settings.js';
 import { RESOURCES } from '../types.js';
 import type {
   ActionErrorCode,
@@ -34,7 +35,8 @@ import type {
 } from '../types.js';
 import { addLog, hexLabel, playerName } from './log.js';
 import { randomInt, shuffleWithRng } from './rng.js';
-import { buildBoard } from './board.js';
+import { buildBoard, desertHexId } from './board.js';
+import { generateMap } from './map.js';
 import { refreshDerived } from './awards.js';
 
 export interface EngineFailure {
@@ -75,16 +77,25 @@ export function createGame(options: CreateGameOptions): GameState {
   }
 
   const seed = options.seed >>> 0;
+  const mapSettings = normalizeMapSettings(options.map, DEFAULT_MAP_SETTINGS);
+  const seats = maxSeatsFor(mapSettings.size);
+  if (playerCount > seats) {
+    throw new Error(
+      `createGame: a ${mapSettings.size} island seats at most ${seats} players`,
+    );
+  }
   let rng = seed;
 
   const rotation = randomInt(rng, 6);
   rng = rotation.state;
   const mirror = randomInt(rng, 2);
   rng = mirror.state;
+  const generated = generateMap(mapSettings, rng);
+  rng = generated.state;
   const firstDraw = randomInt(rng, playerCount);
   rng = firstDraw.state;
   const firstSeat = firstDraw.value;
-  const board = buildBoard({ rotation: rotation.value, mirror: mirror.value });
+  const board = buildBoard(generated.layout, { rotation: rotation.value, mirror: mirror.value });
 
   let nextCardIid = 0;
   const players: PlayerState[] = [];
@@ -138,7 +149,7 @@ export function createGame(options: CreateGameOptions): GameState {
   const state: GameState = {
     gameId: options.gameId ?? `lorac-${seed}-${playerCount}`,
     version: 0,
-    config: { playerCount, targetVp: targetVpFor(playerCount), seed },
+    config: { playerCount, targetVp: targetVpFor(playerCount, mapSettings.size), map: mapSettings, seed },
     rng,
     phase: 'setup',
     turn: 0,
@@ -148,7 +159,7 @@ export function createGame(options: CreateGameOptions): GameState {
     board,
     buildings: {},
     roads: {},
-    robberHex: DESERT_HEX_ID,
+    robberHex: desertHexId(board),
     players,
     market,
     dice: null,
@@ -196,7 +207,7 @@ export function cloneState(state: GameState): GameState {
   return {
     gameId: state.gameId,
     version: state.version,
-    config: { ...state.config },
+    config: { ...state.config, map: { ...state.config.map } },
     rng: state.rng,
     phase: state.phase,
     turn: state.turn,

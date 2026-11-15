@@ -71,6 +71,29 @@ the leader is unbeatable at minute 22, the design failed.
 
 ### 4.1 Board
 
+The host picks the island before the start. Three sizes, three land
+placements, three number placements.
+
+| Size | Hexes | Shape | Seats | Victory target |
+| --- | --- | --- | --- | --- |
+| Compact | 7 | radius-1 hexagon | 2 | 14 (2 players) |
+| Standard | 19 | radius-2 hexagon, 3-4-5-4-3 | 2-4 | 18 / 16 / 14 |
+| Grand | 37 | radius-3 hexagon | 2-4 | 22 / 20 / 18 |
+
+Land and numbers each offer three modes:
+
+- **Fixed.** The designed table below, identical every game. Other sizes use one
+  deterministic generated map per size.
+- **Balanced.** No two touching hexes share a terrain, no two touching hexes
+  share a number, and no 6 touches an 8.
+- **Wild.** One plain shuffle.
+
+The island is still rotated by 60 degree steps and independently mirrored, so
+even a fixed map has twelve orientations. Hex ids come from the row and column
+(see below), so the desert on a standard island is always `C3`.
+
+The rest of this section describes the standard island.
+
 19 hexes arranged 3-4-5-4-3. 54 vertices, 72 edges, 30 coastal edges.
 
 Terrain: 4 wood, 4 sheep, 4 wheat, 3 brick, 3 ore, 1 desert.
