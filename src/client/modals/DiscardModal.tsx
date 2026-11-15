@@ -27,9 +27,14 @@ export function DiscardModal({
       const value = Math.max(0, Math.min(resources[resource], (next[resource] ?? 0) + delta));
       if (value === 0) delete next[resource];
       else next[resource] = value;
-      if (Object.values(next).reduce((sum, amount) => sum + (amount ?? 0), 0) > required) {
+      // Refuse an addition that would overshoot. Letting the counter pass the
+      // required amount strands the player above the target with confirm
+      // disabled and nothing to click.
+      const total = Object.values(next).reduce((sum, amount) => sum + (amount ?? 0), 0);
+      if (total > required) {
         setShake(true);
         window.setTimeout(() => setShake(false), 320);
+        return current;
       }
       return next;
     });
@@ -68,7 +73,7 @@ export function DiscardModal({
             <span className="stepper">
               <button type="button" className="step-btn" disabled={(picked[resource] ?? 0) === 0} onClick={() => step(resource, -1)} aria-label={`One less ${WORD[resource]}`}>−</button>
               <span className="step-value">{picked[resource] ?? 0}</span>
-              <button type="button" className="step-btn" disabled={(picked[resource] ?? 0) >= resources[resource]} onClick={() => step(resource, 1)} aria-label={`One more ${WORD[resource]}`}>+</button>
+              <button type="button" className="step-btn" disabled={(picked[resource] ?? 0) >= resources[resource] || total >= required} onClick={() => step(resource, 1)} aria-label={`One more ${WORD[resource]}`}>+</button>
             </span>
           </div>
         ))}
