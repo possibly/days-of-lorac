@@ -42,7 +42,6 @@ interface CardFaceProps {
   playable: boolean;
   needsChoice: boolean;
   selected: boolean;
-  duplicateCount: number;
   letters: boolean;
   /** Offsets from this card's final slot back to the deck counter. */
   deal?: { dx: number; dy: number; delay: number } | null;
@@ -51,7 +50,7 @@ interface CardFaceProps {
 }
 
 /** One ledger card. Name one line, rules text verbatim, flavor in the footer. */
-export function CardFace({ card, def, cost, playable, needsChoice, selected, duplicateCount, letters, deal, onPlay, onInspect }: CardFaceProps): JSX.Element {
+export function CardFace({ card, def, cost, playable, needsChoice, selected, letters, deal, onPlay, onInspect }: CardFaceProps): JSX.Element {
   const primary = primaryResource(def);
   const price = cost ?? def.cost;
   const costs = price
@@ -119,7 +118,6 @@ export function CardFace({ card, def, cost, playable, needsChoice, selected, dup
           {needsChoice ? <span className="choice-badge" title="Pick a target after you play this">?</span> : null}
         </footer>
 
-        {duplicateCount > 1 ? <span className="dup-disc" aria-label={`${duplicateCount} copies`}>x{duplicateCount}</span> : null}
         {!playable && def.kind === 'charter' ? <span className="charter-stamp" aria-hidden="true">deed</span> : null}
         {letters ? <span className="sr-only">Resource {primary}</span> : null}
       </button>

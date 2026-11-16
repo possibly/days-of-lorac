@@ -112,7 +112,7 @@ Collapses on tablet, in order:
 2. Right rail becomes a drawer over the board with a 42% ink scrim, opened by
    "Buy card", the market tab, or the trade tab. Closed by scrim, Esc, or the
    chevron.
-3. Hand cards go from 152x212 to 132x184 with the truncation rule in section 5.
+3. Hand cards use the compact face from section 5 in a flat scrolling row, 124x138.
 4. Port tags drop the ship ornament and keep icon plus rate.
 5. Header drops the wordmark text, keeps the seal as a home button, moves
    "Rules" into an overflow menu.
@@ -299,7 +299,9 @@ to a city." The ids stay in the entry's `data` for tests and debugging.
 ## 5. Hand
 
 Hand dock is a parchment shelf with a 1px brass top rule and an 18px ink shadow
-cast upward. Cards fan inside it like filed ledger cards.
+cast upward. On desktop the cards fan inside it like filed ledger cards. At
+1180px and below the fan is replaced by a flat scrolling row of compact cards,
+so nothing tilts out of the dock or into the play strip.
 
 Card face, 152x212 desktop, 132x184 tablet:
 
@@ -339,6 +341,13 @@ Five cards at `W=872` use step 132 and span 680px. Draw effects can push the
 hand to nine, where the same formula compresses to step 88 and keeps each card's
 left 88px clickable. Past nine, a "Spread" toggle switches to a scrolling row.
 
+At 1180px and below the row is always flat and scrolls sideways, and the spread
+toggle is hidden. The compact face keeps the name (up to two lines) and the
+rules text and drops the hex plate, cost pips, flavor, footer tag, and charter
+stamp. Tablet cards are 124x138; phone cards are 110x136. Cards of the same type
+carry no count marker; the deck and discard counters already say how many
+copies exist.
+
 Interaction:
 
 - Hover unrotates to 0, lifts `-14px`, `scale(1.06)`, z 500, 180ms
@@ -360,11 +369,10 @@ Interaction:
 - Play with a click, `1` to `9`, or Space on focus. The card animates to the
   play area strip, a 40px row of 96x40 stubs along the dock's top left. Cards
   needing a choice open the targeting flow in section 9 and wait.
-- Duplicate `defId` in hand shows an `x2` disc top right in sans 10px.
 
-At 1024: card 132x184, name 12.5px, body 11px over 3 lines, flavor moved to the
-inspector, cost pips 12px. Truncation adds the tooltip "Open the inspector for
-the full text". Nothing renders below 11px.
+At 1024 the compact face runs at 124x138 with a 12px name over two lines and
+10.5px body over six lines. The inspector keeps the full text, cost, and flavor.
+Nothing renders below 11px.
 
 ---
 

@@ -408,18 +408,6 @@
   font-size: 9px;
   font-weight: 700;
 }
-.dup-disc {
-  position: absolute;
-  top: 3px;
-  right: 3px;
-  padding: 0 3px;
-  border-radius: 8px;
-  background: var(--ink-700);
-  color: var(--parchment-100);
-  font-family: var(--sans);
-  font-size: 8.5px;
-  line-height: 12px;
-}
 .charter-stamp {
   position: absolute;
   bottom: 24px;
@@ -452,14 +440,30 @@
   flex: none;
 }
 
+/* Tablet: the same compact face as a phone, at a size that fits the 182px
+   hand row. The fan is off at this width (HandDock uses the flat row), so
+   cards no longer lean into the play strip. */
 @media (max-width: 1180px) {
-  .hand-dock { padding: 34px 6px 6px; --card-w: 132px; --card-h: 152px; }
+  .hand-dock { padding: 34px 6px 6px; --card-w: 124px; --card-h: 138px; }
   .hand-fan { inset: 34px 6px 6px; }
-  .card-name { font-size: 12px; }
-  .card-text { font-size: 10.5px; -webkit-line-clamp: 5; min-height: 0; }
-  .card-flavor { display: none; }
-  .card-plate { height: 34px; }
-  .card-plate svg { width: 34px; height: 34px; }
+  .card-face { padding: 6px 7px 5px; gap: 2px; border-radius: 5px; }
+  .card-plate,
+  .card-cost,
+  .rope-rule,
+  .card-flavor,
+  .card-foot,
+  .charter-stamp { display: none; }
+  .card-head { min-height: 0; align-items: flex-start; }
+  .card-name {
+    font-size: 12px;
+    line-height: 1.15;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .card-text { font-size: 10.5px; line-height: 1.28; -webkit-line-clamp: 6; min-height: 0; }
   .play-area { height: 28px; }
   .play-stub { height: 24px; width: 88px; }
   .hand-counters { font-size: 9px; }
@@ -510,7 +514,6 @@
     -webkit-line-clamp: 7;
     min-height: 0;
   }
-  .dup-disc { font-size: 8px; top: 2px; right: 3px; }
   .dock-head { top: 4px; left: 6px; right: 6px; height: 24px; gap: 6px; }
   .play-area { height: 22px; }
   .play-stub { height: 20px; width: 70px; font-size: 8px; }

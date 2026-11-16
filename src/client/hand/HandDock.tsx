@@ -20,8 +20,9 @@ interface HandDockProps {
 }
 
 /**
- * Fanned ledger cards in a parchment shelf. Positions use the fan formula from
- * the spec; the dock measures itself so the fan stays centred at any width.
+ * Ledger cards in a parchment shelf. Desktop gets the fanned hand from the
+ * spec; tablets and phones get a flat scrolling row so the cards stay inside
+ * the dock and nothing leans into the play strip.
  */
 export function HandDock({ view, playableIids, choiceIids, selectedIid, onPlay, onInspect, letters, boughtStub, reshuffling }: HandDockProps): JSX.Element {
   const you = view.players[view.you];
@@ -29,15 +30,20 @@ export function HandDock({ view, playableIids, choiceIids, selectedIid, onPlay, 
   const [width, setWidth] = useState(872);
   const [cardWidth, setCardWidth] = useState(152);
   const [spread, setSpread] = useState(false);
-  const [phone, setPhone] = useState(false);
+  const [flatHand, setFlatHand] = useState(
+    () => typeof window !== 'undefined'
+      && (window.matchMedia('(max-width: 1180px)').matches
+        || window.matchMedia('(max-height: 520px)').matches),
+  );
   const playRow = useRef<HTMLDivElement>(null);
   const [playScrollable, setPlayScrollable] = useState(false);
 
   useEffect(() => {
-    // Portrait phones and short landscape viewports both want the flat row.
-    const narrow = window.matchMedia('(max-width: 640px)');
+    // Tablets, phones, and short landscape viewports all want the flat row: the
+    // fan's rotated outer cards overlap the play strip when the dock is short.
+    const narrow = window.matchMedia('(max-width: 1180px)');
     const short = window.matchMedia('(max-height: 520px)');
-    const sync = (): void => setPhone(narrow.matches || short.matches);
+    const sync = (): void => setFlatHand(narrow.matches || short.matches);
     sync();
     narrow.addEventListener('change', sync);
     short.addEventListener('change', sync);
@@ -91,11 +97,9 @@ export function HandDock({ view, playableIids, choiceIids, selectedIid, onPlay, 
   const edgeGuard = Math.max(64, (width - 238) / Math.max(1, n - 1));
   const step = Math.min(baseStep, edgeGuard);
   const center = width / 2;
-  const counts = new Map<string, number>();
-  for (const card of hand) counts.set(card.defId, (counts.get(card.defId) ?? 0) + 1);
-  // A phone is too narrow for a readable fan: use the scrolling row so no
-  // card hides under its neighbour or runs past the dock.
-  const showSpread = spread || phone;
+  // Small screens are too short for a readable fan: use the scrolling row so
+  // no card hides under its neighbour or leans into the play strip.
+  const showSpread = spread || flatHand;
 
   // ----- deal-in and end-of-turn flights ----------------------------------
   // The engine drops a seat's played cards and any charters into its discard on
@@ -266,9 +270,11 @@ export function HandDock({ view, playableIids, choiceIids, selectedIid, onPlay, 
         </div>
       </div>
 
-      <button type="button" className="spread-toggle" onClick={() => setSpread((value) => !value)} aria-pressed={spread} title="Toggle a scrolling row instead of the fan">
-        {showSpread ? 'Fan' : 'Spread'}
-      </button>
+      {flatHand ? null : (
+        <button type="button" className="spread-toggle" onClick={() => setSpread((value) => !value)} aria-pressed={spread} title="Toggle a scrolling row instead of the fan">
+          {showSpread ? 'Fan' : 'Spread'}
+        </button>
+      )}
 
       <div className="hand-fan" role="list">
         {hand.length === 0 ? <p className="hand-empty">Hand empty.</p> : null}
@@ -300,7 +306,6 @@ export function HandDock({ view, playableIids, choiceIids, selectedIid, onPlay, 
                 playable={playableIids.has(card.iid)}
                 needsChoice={choiceIids.has(card.iid)}
                 selected={selectedIid === card.iid}
-                duplicateCount={counts.get(card.defId) ?? 1}
                 letters={letters}
                 deal={deals.get(card.iid) ?? null}
                 onPlay={() => onPlay(card.iid)}
