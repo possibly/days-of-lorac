@@ -16,57 +16,49 @@ sea is the ground, every border is a brass hairline, nothing is rounded past
 
 ```
 boot
- |-- ?room=CODE and token stored --> resume --ok--> lobby | game
- |-- ?room=CODE, no token ---------> Join, code prefilled
- |-- stored token, no code --------> Title with "Resume last game"
- '-- otherwise -------------------> Title
+ '-- #code=CODE --> Join, code prefilled
+ '-- otherwise ---> Title
 
-Title --> Solo setup --> Game        Title --> Create room --> Lobby --> Game
-Title --> Join by code --> Lobby --> Game
+Title --> Solo setup --> Game
+Title --> Host a table --> Lobby --> Game
+Title --> Join a table --> Lobby --> Game
 
-Game --> Game over --+-- Play again --> same room, new seed
-                     '-- Change setup --> Title
+Game --> Game over --+-- Play again --> same table, new seed
+                     '-- Title
 any screen --> Rules sheet, closes back where it opened
 ```
 
 | Screen | Content | Primary button |
 | --- | --- | --- |
-| Title | wordmark, seal, tagline, three buttons, footer version and socket dot | "Play vs bots" |
+| Title | wordmark, seal, tagline, solo button, peer buttons when a relay is configured, footer version | "Play vs bots" |
 | Solo setup | name, seats 2/3/4, difficulty, island size, land placement, number placement, "Race to N" note | "Start game" |
-| Create room | name, max players 2/3/4, fill difficulty, island size, land placement, number placement | "Create room" |
-| Lobby (host) | seats, island picker (same three rows), invite link, table talk | "Start game" |
-| Lobby (guest) | seats, island summary line, invite link, table talk | "Ready" |
-| Join | name, 4-letter code in caps, locked when it came from a URL | "Join room" |
-| Lobby | code chip, seat grid, ready toggles, host controls, invite link | "Start game" |
+| Host setup | name, max players 2/3/4, fill difficulty, island size, land placement, number placement | "Open the table" |
+| Lobby (host) | seats, island picker (same three rows), join code and QR, table talk | "Start game" |
+| Lobby (guest) | seats, island summary line, table talk | "Ready" |
+| Join | four-letter code in caps, or scan the host's screen, then name | "Join with code" |
 | Game | board, ledger, market, hand, action bar | context button |
 | Game over | winner line, VP table, log digest | "Play again" |
 
-Title also gets a text link "Rules". A stored session shows a strip above the
-buttons: "You have a game in room KRTM." with "Resume" and "Forget".
+Title also gets a text link "Rules". Multiplayer buttons are absent when the
+build has no relay URL, so the same page always means solo only in that case.
 
-`?room=CODE` behavior:
+`#code=CODE` behavior:
 
-1. Uppercase and test `/^[A-Z]{4}$/`. Otherwise toast "Room codes are four
-   letters." and strip the param.
-2. Token stored for that code: connect and send `resume {code, token}` first.
-   `ROOM_NOT_FOUND` falls back to Join with the code filled and toast "That room
-   has ended."
-3. No token: Join screen, name focused, code in a locked chip with "Change".
-4. `ROOM_FULL` reads "That room is full. Ask the host for a seat or start your
-   own." `ALREADY_STARTED` reads "That game has already started."
-5. Keep the param once seated so a refresh resumes instead of taking a seat.
+1. Open the Join screen with the code filled in.
+2. A bad code reads "Codes are four letters" and leaves the field editable.
+3. Joining connects to the host's tab through the relay, then seats the guest in
+   the room named by the host's offer.
 
-Reconnect states:
+Connection states:
 
 | State | Visual | Input |
 | --- | --- | --- |
-| socket dropped | banner "Connection lost. Reconnecting..." with a 2px indeterminate bar | disabled, board hover still reads |
-| back under 45s | banner clears, toast "Reconnected." | restored |
-| past 45s | strip "A bot is playing your seat. Reconnect to take back control." | disabled, tooltip "Bot pilot" |
+| channel closed | banner "Connection lost. The table is gone." | disabled |
 | `roomClosed` | modal "This room has closed." with "Back to title" | auto-navigate after 4s |
 | version mismatch | blocking modal "Server and client versions differ. Reload the page." | blocked |
 
-Hold a pending action in memory across a drop and resend it once, never twice.
+A peer channel has no reconnect address. The session tears down and returns to
+the title screen instead of retrying.
 
 ---
 
@@ -717,9 +709,9 @@ resource counts. Any label sitting on the sea gets a 1px parchment plate.
 
 ```
 App
-├─ SocketProvider        net/socket.ts, net/useGame.ts
-├─ ScreenRouter          ?room, stored token, screen state
-│  ├─ TitleScreen  SoloSetup  JoinScreen  LobbyScreen
+├─ Store                 net/store.ts, net/useGame.ts
+├─ ScreenRouter          screen state, peer phases
+│  ├─ TitleScreen  SoloSetup  PeerHostScreen  PeerJoinScreen  LobbyScreen
 │  ├─ GameScreen
 │  │  ├─ Header          wordmark, turn chip, target, sound, rules, leave
 │  │  ├─ BoardFrame
@@ -746,8 +738,9 @@ and the viewBox, and `board/icons.tsx` for terrain, resource, and seat marks.
 
 Build order, playable loop first:
 
-1. `net/socket.ts` and `useGame.ts`: connect, `welcome`, `quickPlay`, hold the
-   `game` view, reconnect with `resume`. Dump raw view JSON, no styling.
+1. `net/local.ts` and `useGame.ts`: run the engine in the tab, `quickPlay`,
+   hold the `game` view, reconnect the bot loop on each action. Dump raw view
+   JSON, no styling.
 2. `styles/tokens.css` and `base.css`: palette, type, button, panel, focus ring.
 3. `BoardSvg`: hexes, tokens, ports, roads, buildings, robber, viewBox math,
    read only. If the board is wrong nothing else matters.
@@ -760,7 +753,7 @@ Build order, playable loop first:
 8. Robber flow, discard modal, bank trades.
 9. Player trade offer and incoming offer.
 10. Provisioner, Wrecker's Lamp, Guild Mason, Shipwright's Yard.
-11. Lobby, join by code, `?room`, reconnect banners, bot pilot strip.
+11. Lobby, join by code, peer invite panel, connection banner.
 12. Game over, rematch, rules sheet.
 13. Motion pass, sound pass, tablet layout, accessibility list mode.
 

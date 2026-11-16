@@ -1,11 +1,11 @@
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 
-/** Room closed or version mismatch: blocking sheets with one way forward. */
+/** Table closed or version mismatch: blocking sheets with one way forward. */
 export function RoomClosedModal({ reason, onTitle }: { reason: string; onTitle: () => void }): JSX.Element {
   return (
     <Modal
-      title="This room has closed."
+      title="This table has closed."
       width={420}
       footer={<Button variant="primary" onClick={onTitle}>Back to title</Button>}
     >
@@ -17,9 +17,9 @@ export function RoomClosedModal({ reason, onTitle }: { reason: string; onTitle: 
 
 export function VersionMismatchModal({ serverVersion, clientVersion }: { serverVersion: string; clientVersion: string }): JSX.Element {
   return (
-    <Modal title="Server and client versions differ." width={440} mandatory>
+    <Modal title="Host and client versions differ." width={440} mandatory>
       <p className="modal-note">
-        The server runs <b>v{serverVersion}</b> and this page is <b>v{clientVersion}</b>. Reload the page to pick up the matching client.
+        The table runs <b>v{serverVersion}</b> and this page is <b>v{clientVersion}</b>. Reload the page to pick up the matching client.
       </p>
       <Button variant="primary" onClick={() => window.location.reload()}>Reload the page</Button>
     </Modal>

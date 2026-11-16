@@ -169,8 +169,8 @@ export function randomCode(random: () => number = Math.random): string {
 
 /**
  * Random hex id. `crypto.randomUUID` is secure-context only, so a page served
- * over plain HTTP on a LAN (peer hosting, `npm start` from another device)
- * falls back to `getRandomValues`, which works everywhere.
+ * over plain HTTP on a LAN falls back to `getRandomValues`, which works
+ * everywhere.
  */
 export function randomId(): string {
   const webCrypto = (globalThis as { crypto?: Crypto }).crypto;

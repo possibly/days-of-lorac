@@ -34,11 +34,11 @@ npm run relay:dev          # wrangler dev, http://127.0.0.1:8787
 Point the game at it:
 
 ```
-http://127.0.0.1:5173/?offline=1&relay=http://127.0.0.1:8787
+http://127.0.0.1:5173/?relay=http://127.0.0.1:8787
 ```
 
 `?relay=` is a runtime override. `VITE_RELAY_URL` is the build-time default.
-With neither, the game uses direct invite links and reply codes.
+With neither, the game is solo only.
 
 Health check: `curl http://127.0.0.1:8787/health`.
 
@@ -60,7 +60,7 @@ Then either:
   Pages workflow, so the deployed site uses codes by default, or
 - pass it per visit: `?relay=https://…workers.dev`.
 
-Without a relay URL the Pages build still works, with direct invites.
+Without a relay URL the Pages build is solo only.
 
 ## Protocol
 

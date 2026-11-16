@@ -3,10 +3,10 @@ import type { ClientSnapshot } from './store';
 import { client } from './store';
 
 /**
- * Subscribe to the active store and make sure it is running. Online that means
- * opening the socket; offline `start()` is a no-op. The effect only starts the
- * client; it never closes it, so StrictMode's mount/unmount/mount cycle cannot
- * create a second seat.
+ * Subscribe to the active store and make sure it is running. The in-tab bot
+ * game has nothing to open; a peer table connects over its transport. The
+ * effect only starts the client, never closes it, so StrictMode's
+ * mount/unmount/mount cycle cannot create a second seat.
  */
 export function useGame(): ClientSnapshot {
   const snapshot = useSyncExternalStore(client.subscribe, client.getSnapshot, client.getSnapshot);
@@ -14,10 +14,4 @@ export function useGame(): ClientSnapshot {
     client.start();
   }, []);
   return snapshot;
-}
-
-/** True once the welcome check passed, so the UI can trust the socket. */
-export function useServerReady(): boolean {
-  const snapshot = useGame();
-  return snapshot.ready;
 }

@@ -80,6 +80,15 @@
   margin: 20px 0 12px;
 }
 
+.title-note {
+  margin: -2px auto 10px;
+  max-width: 26rem;
+  font-family: var(--serif);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-500);
+}
+
 .title-panel .text-link { color: var(--ink-700); }
 .title-panel .text-link:hover { color: var(--ink-900); }
 

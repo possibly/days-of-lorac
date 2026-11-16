@@ -1,20 +1,16 @@
 /**
  * The one store the UI talks to.
  *
- * Normally the build picks a store once: the WebSocket client for a build with
- * a server, the in-browser client for the static build. Peer play breaks that
- * assumption, because the same page may host a table (which needs the room
- * protocol and therefore the online client) after starting out offline.
- *
- * So `client` is a stable front that forwards to whichever store is active.
- * Screens keep calling `client.*` and `useSyncExternalStore` keeps one subscribe
- * function, while `activate` swaps the store underneath and notifies once.
+ * The page starts in the in-tab bot game. Hosting or joining a peer table swaps
+ * in the WebSocket-style client that talks over a data channel; leaving swaps
+ * back. Screens keep calling `client.*` and `useSyncExternalStore` keeps one
+ * subscribe function, while `activate` swaps the store underneath and notifies
+ * once.
  */
 import type { BotDifficulty, GameAction, MapSettings, Seat } from '@shared/types';
 import type { ClientSnapshot } from './socket';
 import { onlineClient } from './socket';
 import { LocalClient } from './local';
-import { OFFLINE_MODE } from './mode';
 
 export interface GameStore {
   subscribe(listener: () => void): () => void;
@@ -23,12 +19,7 @@ export interface GameStore {
   stop?(): void;
 
   quickPlay(name: string, seats: 2 | 3 | 4, difficulty: BotDifficulty, map: MapSettings): void;
-  createRoom(name: string, maxPlayers: 2 | 3 | 4, difficulty: BotDifficulty, map: MapSettings): void;
-  joinRoom(code: string, name: string): void;
-  resumeSession(code: string, token: string): void;
-  resumeStored(code: string): boolean;
   leaveRoom(): void;
-  forget(): void;
 
   setReady(ready: boolean): void;
   setMapSettings(map: MapSettings): void;
@@ -40,7 +31,6 @@ export interface GameStore {
   chat(text: string): void;
   sendAction(action: GameAction): void;
   clearError(): void;
-  clearRoomClosed(): void;
 }
 
 class StoreFront implements GameStore {
@@ -84,12 +74,7 @@ class StoreFront implements GameStore {
   stop = (): void => this.active.stop?.();
 
   quickPlay = (...args: Parameters<GameStore['quickPlay']>): void => this.active.quickPlay(...args);
-  createRoom = (...args: Parameters<GameStore['createRoom']>): void => this.active.createRoom(...args);
-  joinRoom = (...args: Parameters<GameStore['joinRoom']>): void => this.active.joinRoom(...args);
-  resumeSession = (...args: Parameters<GameStore['resumeSession']>): void => this.active.resumeSession(...args);
-  resumeStored = (code: string): boolean => this.active.resumeStored(code);
   leaveRoom = (): void => this.active.leaveRoom();
-  forget = (): void => this.active.forget();
   setReady = (ready: boolean): void => this.active.setReady(ready);
   setMapSettings = (map: MapSettings): void => this.active.setMapSettings(map);
   addBot = (difficulty: BotDifficulty): void => this.active.addBot(difficulty);
@@ -99,17 +84,16 @@ class StoreFront implements GameStore {
   chat = (text: string): void => this.active.chat(text);
   sendAction = (action: GameAction): void => this.active.sendAction(action);
   clearError = (): void => this.active.clearError();
-  clearRoomClosed = (): void => this.active.clearRoomClosed();
 }
 
 const localClient = new LocalClient();
 
-export const client = new StoreFront(OFFLINE_MODE ? localClient : onlineClient);
+export const client = new StoreFront(localClient);
 
 /** The room-protocol client. Peer hosting and peer joining both use it. */
 export { onlineClient };
 
-export function activateOffline(): void {
+export function activateLocal(): void {
   client.activate(localClient);
 }
 
@@ -117,5 +101,4 @@ export function activateOnline(): void {
   client.activate(onlineClient);
 }
 
-export { OFFLINE_MODE };
 export type { ClientSnapshot, LinkState, WireError } from './socket';

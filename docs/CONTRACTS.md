@@ -1,6 +1,6 @@
 # Implementation contracts
 
-This file is the handoff between the engine, server, bot, and client teams. The
+This file is the handoff between the engine, room layer, bot, and client teams. The
 design docs own the rules. `src/shared/types.ts`, `constants.ts`, `cards.ts`,
 `board-template.ts`, and `protocol.ts` own the shapes. When a shape here is not
 enough, add to those files; do not create a parallel type.
@@ -11,7 +11,7 @@ enough, add to those files; do not create a parallel type.
 | --- | --- | --- |
 | Shared contracts | `src/shared/types.ts`, `constants.ts`, `cards.ts`, `board-template.ts`, `protocol.ts` | lead |
 | Engine | `src/shared/engine/**`, engine tests | engine agent |
-| Server | `src/server/**` except `static.ts`/`config.ts` | server agent |
+| Room layer | `src/server/**` | room agent |
 | Bots | `src/server/bots/**`, `scripts/balance.ts` | bot agent |
 | Client | `src/client/**` | client agent |
 | Docs | `docs/**` | design agent / lead |
@@ -60,7 +60,7 @@ bestBankRate(state: GameState, seat: Seat, give: Resource): number
 - Never mutates the input. Clone the state, apply to the clone, return the new
   state. On any error return `{ ok: false, code, message }` and leave the input
   untouched.
-- `seat` is the acting player, injected by the server. Never trust a seat in
+- `seat` is the acting player, injected by the room layer. Never trust a seat in
   the action payload; actions do not carry one.
 - Normal actions require `seat === state.currentSeat` and the right phase.
 - Two out-of-turn actions are legal:
@@ -105,7 +105,7 @@ bestBankRate(state: GameState, seat: Seat, give: Resource): number
   Keeps counts for hand, deck, discard, and played.
 - The viewer's own hand is included. Deck order and discard contents never are.
 - `played` is public for everyone.
-- `connected` defaults to true; server passes the room's live map.
+- `connected` defaults to true; the room layer passes its live map.
 - `legal` is for the viewer, not the current player. `isTurn` tells the UI
   whether to show action controls.
 - `log` is the last 120 entries. State keeps all of them.
@@ -162,7 +162,7 @@ the UI. They must agree with `legalMoves` and `refreshDerived`.
 - **Victory.** Target 18/16/14 for 2/3/4 players. First to reach wins, including
   mid-card and mid-purchase. Set `phase = 'gameOver'`, `winner`, and log it.
 
-## Server
+## Room layer
 
 `src/server/rooms.ts` or `room-manager.ts` owns:
 - Room codes: 4 uppercase letters, no ambiguous characters (no I/O/0/1 maybe).
@@ -176,22 +176,23 @@ the UI. They must agree with `legalMoves` and `refreshDerived`.
   400-900ms. Clear timers on room close and after each action. Never overlap
   bot turns. Bots also answer trade offers.
 - Rematch and room teardown.
-- Reconnect: token in localStorage, `resume` attaches the socket to the existing
-  seat. On close, mark disconnected and let the bot take over after 45s.
-- Rate limit: max ~20 messages/sec/socket and 64KB payload. The scaffold's WS
-  layer has the max payload; add the counter.
+- Resume: a `resume` with the seat token attaches a new connection to the
+  existing seat. Peer clients do not use it: a closed data channel has no
+  address to reconnect to. On close, mark disconnected and let the bot take
+  over after 45s.
+- Rate limit: max ~20 messages/sec/connection and 64KB payload. The peer host
+  applies the counter per data channel.
 - Never send another player's hand or token.
 
-`ws.ts` should route parsed messages into the room manager. Keep `static.ts`
-and `config.ts` as they are. The health endpoint can report rooms/games.
+`src/client/net/peer/host.ts` routes parsed messages from each data channel into
+the room manager. The same router serves the host's own loopback seat.
 
 ## Client
 
-- Replace the title screen with the real flow: name, quick play vs bots,
-  create room, join by code, resume from localStorage.
-- One socket hook that handles `welcome`, `lobby`, `game`, `error`, `chat`,
-  `roomClosed`, and reconnect. Store the token per room. On reconnect, send
-  `resume`; do not create a new seat.
+- Title flow: name, play vs bots, and peer host/join when a relay URL exists.
+- One store hook that handles `welcome`, `lobby`, `game`, `error`, `chat`, and
+  `roomClosed`. Peer connections attach a transport; there is no origin socket
+  and no automatic reconnect.
 - Render from `GameView` only. Never compute legality yourself beyond what
   `legal` exposes. Use `legal.build` and `legal.playable` for highlighting.
 - Board is inline SVG. Use the board coordinates from the view. Support build
@@ -209,21 +210,21 @@ Solo:
 
 ```
 client -> quickPlay { name, seats: 4, difficulty: 'normal' }
-server -> game { roomCode, you: 0, token, view }   // bots already seated
+room   -> game { roomCode, you: 0, token, view }   // bots already seated
 ```
 
 Online host:
 
 ```
 client -> createRoom { name, maxPlayers: 4, difficulty: 'normal' }
-server -> lobby { room, you: 0, token }
+room   -> lobby { room, you: 0, token }
 other  -> joinRoom { code, name }
-server -> lobby ...                                 // broadcast to both
+room   -> lobby ...                                 // broadcast to both
 host   -> addBot / startGame
-server -> game ...                                  // unicast per human
+room   -> game ...                                  // unicast per human
 ```
 
-Every mutation is one `action` message. The server replies to all humans with a
+Every mutation is one `action` message. The room replies to all humans with a
 fresh `game` view. Errors are unicast `{ type: 'error', code, message, seq }`.
 
 ## Testing bar
@@ -232,8 +233,8 @@ fresh `game` view. Errors are unicast `{ type: 'error', code, message, seq }`.
   edges), port distribution, distance rule, setup snake and random first seat,
   production, 7 flow, discards, robber, bank/port rates, every build, every
   card effect and fallback, awards and ties, victory mid-card, determinism.
-- Server: create/join/fill bots/start, reconnect, action routing, bot turn does
-  not stall, view filtering hides hands.
+- Room layer: create/join/fill bots/start, resume, action routing, bot turn
+  does not stall, view filtering hides hands.
 - Bots: full simulated games for 2/3/4 players, no illegal actions, no stalls,
   median length in range, winner VP split report.
 - Client: `npm run build` and a browser smoke test of a full game against bots.

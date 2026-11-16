@@ -2,26 +2,19 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { GAME_VERSION } from '@shared/version';
 import type { GameAction, GameView, MapSettings, Seat } from '@shared/types';
 import { normalizeMapSettings } from '@shared/map-settings';
-import { client, OFFLINE_MODE } from './net/store';
-import type { LinkState } from './net/store';
+import { client } from './net/store';
 import { useGame } from './net/useGame';
 import { errorLine } from './net/errors';
 import {
-  forgetSession,
-  loadLastSession,
   loadLetters,
   loadName,
-  loadResumable,
   loadSound,
   saveLetters,
   saveName,
   saveSound,
 } from './net/storage';
-import type { StoredSession } from './net/storage';
 import { TitleScreen } from './screens/TitleScreen';
 import { SoloSetupScreen } from './screens/SoloSetupScreen';
-import { CreateRoomScreen } from './screens/CreateRoomScreen';
-import { JoinScreen } from './screens/JoinScreen';
 import { LobbyScreen } from './screens/LobbyScreen';
 import { PeerHostScreen } from './screens/PeerHostScreen';
 import { PeerJoinScreen } from './screens/PeerJoinScreen';
@@ -38,7 +31,7 @@ import { peer } from './net/peer/session';
 import { usePeer } from './net/peer/usePeer';
 import type { HostRoomConfig } from './net/peer/session';
 
-type Screen = 'title' | 'solo' | 'create' | 'join' | 'peer-host' | 'peer-join' | 'connecting' | 'resume' | 'lobby' | 'game';
+type Screen = 'title' | 'solo' | 'peer-host' | 'peer-join' | 'connecting' | 'lobby' | 'game';
 
 const isDev = Boolean((import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV);
 
@@ -58,26 +51,19 @@ export default function App(): JSX.Element {
 
   const [screen, setScreen] = useState<Screen>('title');
   const [name, setName] = useState(() => loadName());
-  const [joinCode, setJoinCode] = useState('');
-  const [joinLocked, setJoinLocked] = useState(false);
-  const [joinNotice, setJoinNotice] = useState<string | null>(null);
   const [rulesOpen, setRulesOpen] = useState(false);
   const [soundOn, setSoundOn] = useState(() => loadSound());
   const [letters, setLetters] = useState(() => loadLetters());
-  const [lastSession, setLastSession] = useState<StoredSession | null>(null);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [closed, setClosed] = useState<string | null>(null);
   const [fixture, setFixture] = useState<FixtureSession | null>(null);
   const fixtureLoader = useRef<((mode: FixtureMode, map: MapSettings) => FixtureSession) | null>(null);
   const [fixtureView, setFixtureView] = useState<GameView | null>(null);
-  const [busyLabel, setBusyLabel] = useState('Seating the table…');
+  const [busyLabel, setBusyLabel] = useState('Opening the table…');
 
   const toastId = useRef(1);
   const booted = useRef(false);
   const peerBooted = useRef(false);
-  const previousLink = useRef<LinkState>('idle');
-  const hostSeat = useRef<Seat | null>(null);
-  const lastCode = useRef<string | null>(null);
   const seenError = useRef<string>('');
   const screenRef = useRef<Screen>('title');
   screenRef.current = screen;
@@ -104,18 +90,12 @@ export default function App(): JSX.Element {
     saveName(name);
   }, [name]);
 
-  useEffect(() => {
-    setLastSession(loadResumable());
-  }, []);
-
-  // #join=... is a direct peer invite. Nothing on a server knows about it.
+  // #code=... is a relay join link. Nothing else on the page knows about it.
   useEffect(() => {
     if (peerBooted.current || fixtureMode) return;
     peerBooted.current = true;
-    if (!window.location.hash.includes('join=') && !window.location.hash.includes('code=')) return;
-    void peer.loadInviteFromUrl().then((ok) => {
-      if (ok) setScreen('peer-join');
-    });
+    if (!window.location.hash.includes('code=')) return;
+    if (peer.loadInviteFromUrl()) setScreen('peer-join');
   }, [fixtureMode]);
 
   // Peer phases own their screens until the room protocol takes over.
@@ -125,12 +105,16 @@ export default function App(): JSX.Element {
       setScreen('connecting');
       return;
     }
-    if (peerState.phase === 'guest-preview' || peerState.phase === 'guest-answering' || peerState.phase === 'guest-waiting') {
+    if (peerState.phase === 'guest-preview' || peerState.phase === 'guest-answering') {
       setScreen('peer-join');
       return;
     }
     if (peerState.phase === 'error') {
-      if (peerState.error) pushToast(peerState.error, 'error');
+      const message = peerState.error;
+      // Tear the half-open table down before the title screen can start a solo
+      // game; otherwise the store would still be pointing at the room client.
+      peer.leave();
+      if (message) pushToast(message, 'error');
       setScreen('title');
     }
   }, [peerState.phase, peerState.error, pushToast]);
@@ -157,57 +141,22 @@ export default function App(): JSX.Element {
   useEffect(() => {
     if (booted.current) return;
     booted.current = true;
-
-    if (fixtureMode) {
-      void loadFixture(fixtureKind);
-      return;
-    }
-
-    // The offline build has no server, no rooms, and nothing to resume.
-    if (OFFLINE_MODE) return;
-
-    const room = params.get('room');
-    if (room === null) return;
-    const code = room.trim().toUpperCase();
-    if (!/^[A-Z]{4}$/.test(code)) {
-      pushToast('Room codes are four letters.', 'error');
-      setRoomParam(null);
-      return;
-    }
-    const resumable = loadResumable();
-    if (resumable && resumable.code === code) {
-      setBusyLabel(`Rejoining room ${code}…`);
-      setScreen('resume');
-      client.resumeSession(code, resumable.token);
-      return;
-    }
-    setJoinCode(code);
-    setJoinLocked(true);
-    setScreen('join');
-    // Refs and toast helper are stable; run once on boot.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (fixtureMode) void loadFixture(fixtureKind);
+    // Everything else starts at the title screen.
   }, []);
 
   // ----- snapshot routing --------------------------------------------------
   useEffect(() => {
     if (fixtureMode) return;
     if (snapshot.mismatch) return;
-    if (snapshot.hostSeat !== null) hostSeat.current = snapshot.hostSeat;
     if (snapshot.game) {
       if (screenRef.current !== 'game') setScreen('game');
-      lastCode.current = snapshot.roomCode;
-      if (snapshot.roomCode) setRoomParam(snapshot.roomCode);
-      setLastSession(loadResumable());
       return;
     }
     if (snapshot.lobby) {
       if (screenRef.current !== 'lobby') setScreen('lobby');
-      hostSeat.current = snapshot.lobby.hostSeat;
-      lastCode.current = snapshot.lobby.code;
-      setRoomParam(snapshot.lobby.code);
-      setLastSession(loadResumable());
     }
-  }, [snapshot.game, snapshot.lobby, snapshot.hostSeat, snapshot.mismatch, fixtureMode]);
+  }, [snapshot.game, snapshot.lobby, snapshot.mismatch, fixtureMode]);
 
   // ----- errors ------------------------------------------------------------
   useEffect(() => {
@@ -216,34 +165,17 @@ export default function App(): JSX.Element {
     const key = `${error.at}:${error.code}`;
     if (seenError.current === key) return;
     seenError.current = key;
-    const line = errorLine(error.code, error.message);
-    pushToast(line, 'error');
+    pushToast(errorLine(error.code, error.message), 'error');
     playCue('reject');
-
-    if (error.code === 'ROOM_NOT_FOUND' || error.code === 'NOT_IN_ROOM') {
-      const code = lastCode.current ?? snapshot.roomCode ?? joinCode;
-      setJoinCode(code);
-      setJoinLocked(Boolean(code));
-      setJoinNotice(error.code === 'ROOM_NOT_FOUND' ? 'That room has ended. Ask for a fresh code.' : 'You are no longer in that room.');
-      setScreen('join');
-      setRoomParam(code || null);
-      setLastSession(loadResumable());
-    } else if (error.code === 'ROOM_FULL' || error.code === 'ALREADY_STARTED' || error.code === 'NAME_REQUIRED') {
-      setJoinNotice(line);
-      setScreen(joinCode ? 'join' : 'title');
-      setRoomParam(joinCode || null);
-    } else if (screenRef.current === 'connecting' || screenRef.current === 'resume') {
-      setScreen('title');
-    }
+    if (screenRef.current === 'connecting') setScreen('title');
     client.clearError();
-  }, [snapshot.error, snapshot.roomCode, joinCode, pushToast]);
+  }, [snapshot.error, pushToast]);
 
   // ----- room closed -------------------------------------------------------
   useEffect(() => {
     if (!snapshot.roomClosed) return;
     setClosed(snapshot.roomClosed);
-    setLastSession(null);
-    setRoomParam(null);
+    peer.leave();
   }, [snapshot.roomClosed]);
 
   useEffect(() => {
@@ -255,13 +187,6 @@ export default function App(): JSX.Element {
     return () => window.clearTimeout(timer);
   }, [closed]);
 
-  // ----- reconnect toast ---------------------------------------------------
-  useEffect(() => {
-    const previous = previousLink.current;
-    previousLink.current = snapshot.link;
-    if (previous === 'closed' && snapshot.link === 'open') pushToast('Reconnected.', 'ok');
-  }, [snapshot.link, pushToast]);
-
   // ----- helpers -----------------------------------------------------------
   const goTitle = (): void => {
     if (fixtureMode) {
@@ -271,12 +196,8 @@ export default function App(): JSX.Element {
     }
     // A peer table lives behind its own teardown, not just a leaveRoom message.
     if (peer.active) peer.leave();
-    else if (OFFLINE_MODE || snapshot.roomCode) client.leaveRoom();
-    setRoomParam(null);
-    setJoinNotice(null);
-    setJoinLocked(false);
+    else client.leaveRoom();
     setScreen('title');
-    setLastSession(loadResumable());
     setClosed(null);
   };
 
@@ -299,8 +220,7 @@ export default function App(): JSX.Element {
 
   const currentView = fixtureMode ? fixtureView : snapshot.game;
   const you = currentView?.you ?? snapshot.you ?? 0;
-  const seatHost = fixtureMode ? true : snapshot.hostSeat !== null ? snapshot.hostSeat === you : hostSeat.current !== null ? hostSeat.current === you : lastCode.current === null ? true : null;
-  const isHost = seatHost;
+  const isHost = fixtureMode ? true : snapshot.hostSeat !== null ? snapshot.hostSeat === you : null;
 
   // ----- render ------------------------------------------------------------
   let body: JSX.Element;
@@ -311,8 +231,6 @@ export default function App(): JSX.Element {
         view={currentView}
         you={currentView.you}
         connected={fixtureMode ? true : snapshot.link === 'open'}
-        link={snapshot.link}
-        botPilot={fixtureMode ? false : snapshot.botPilot}
         pilotSeats={fixtureMode ? [] : snapshot.pilotSeats}
         chats={fixtureMode ? [] : snapshot.chats}
         onChat={(text) => (fixtureMode ? undefined : client.chat(text))}
@@ -353,8 +271,6 @@ export default function App(): JSX.Element {
     );
   } else if (screen === 'solo') {
     body = <SoloSetupScreen initialName={name} onStart={startSolo} onBack={() => setScreen('title')} onRules={() => setRulesOpen(true)} />;
-  } else if (screen === 'create') {
-    body = <CreateRoomScreen initialName={name} onStart={startCreate} onBack={() => setScreen('title')} onRules={() => setRulesOpen(true)} />;
   } else if (screen === 'peer-host') {
     body = (
       <PeerHostScreen
@@ -374,32 +290,13 @@ export default function App(): JSX.Element {
         onRules={() => setRulesOpen(true)}
       />
     );
-  } else if (screen === 'join') {
-    body = (
-      <JoinScreen
-        initialName={name}
-        initialCode={joinCode}
-        locked={joinLocked}
-        notice={joinNotice}
-        onChange={() => setJoinLocked(false)}
-        onJoin={startJoin}
-        onBack={() => { setScreen('title'); setRoomParam(null); }}
-        onRules={() => setRulesOpen(true)}
-      />
-    );
-  } else if (screen === 'resume' || screen === 'connecting') {
+  } else if (screen === 'connecting') {
     body = (
       <main className="setup-screen">
         <div className="parchment setup-panel busy-panel" role="status" aria-live="polite">
-          <p className="eyebrow">{screen === 'resume' ? 'Reconnect' : 'Opening the table'}</p>
+          <p className="eyebrow">Opening the table</p>
           <h1 className="panel-title">{busyLabel}</h1>
-          <p className="setup-note">
-            {peerState.phase === 'host-starting'
-              ? 'This browser is the table. Nothing is uploaded.'
-              : snapshot.link === 'open'
-                ? 'Waiting on the server.'
-                : 'Connecting to the server. The buttons return if it stays down.'}
-          </p>
+          <p className="setup-note">This browser is the table. Nothing is uploaded.</p>
           <span className={`spinner${snapshot.link === 'open' ? ' is-fast' : ''}`} aria-hidden="true" />
           <div className="setup-actions">
             <Button variant="ghost" onClick={goTitle}>Cancel</Button>
@@ -413,20 +310,11 @@ export default function App(): JSX.Element {
         name={name}
         onName={setName}
         onSolo={() => setScreen('solo')}
-        onCreate={() => setScreen('create')}
-        onJoin={() => { setJoinCode(''); setJoinLocked(false); setJoinNotice(null); setScreen('join'); }}
-        showPeer={OFFLINE_MODE || isDev}
+        multiplayer={peerState.relayAvailable}
         onPeerHost={() => { peer.leave(); setScreen('peer-host'); }}
-        onPeerJoin={() => { peer.leave(); setJoinCode(''); setJoinLocked(false); setJoinNotice(null); setScreen('peer-join'); }}
-        onResume={resume}
-        onForget={forget}
+        onPeerJoin={() => { peer.leave(); setScreen('peer-join'); }}
         onRules={() => setRulesOpen(true)}
-        session={lastSession}
-        offline={OFFLINE_MODE}
-        link={snapshot.link}
-        serverVersion={snapshot.serverVersion}
         clientVersion={GAME_VERSION}
-        latency={snapshot.latency}
       />
     );
   }
@@ -462,7 +350,7 @@ export default function App(): JSX.Element {
     </>
   );
 
-  async function loadFixture(mode: FixtureMode): Promise<void> {
+  async function loadFixture(mode: FixtureMode, map: MapSettings = fixtureMap): Promise<void> {
     if (!fixtureLoader.current) {
       const module = await import('./dev/fixture');
       fixtureLoader.current = module.createFixture;
@@ -478,50 +366,6 @@ export default function App(): JSX.Element {
     saveName(person);
     if (fixtureMode) return;
     client.quickPlay(person, seats, difficulty, map);
-    if (OFFLINE_MODE) return;
-    setBusyLabel('Seating the bots…');
-    setScreen('connecting');
-  }
-
-  function startCreate(person: string, maxPlayers: 2 | 3 | 4, difficulty: 'easy' | 'normal' | 'hard', map: MapSettings): void {
-    setName(person);
-    saveName(person);
-    if (fixtureMode) return;
-    setBusyLabel('Creating your room…');
-    setScreen('connecting');
-    client.createRoom(person, maxPlayers, difficulty, map);
-  }
-
-  function startJoin(person: string, code: string): void {
-    setName(person);
-    saveName(person);
-    setJoinCode(code);
-    setJoinLocked(true);
-    setJoinNotice(null);
-    setRoomParam(code);
-    if (fixtureMode) return;
-    setBusyLabel(`Joining room ${code}…`);
-    setScreen('connecting');
-    client.joinRoom(code, person);
-  }
-
-  function resume(code: string): void {
-    if (fixtureMode) return;
-    if (!client.resumeStored(code)) {
-      setJoinCode(code);
-      setJoinLocked(true);
-      setJoinNotice('That room has ended. Ask for a fresh code.');
-      setScreen('join');
-      return;
-    }
-    setBusyLabel(`Rejoining room ${code}…`);
-    setScreen('resume');
-  }
-
-  function forget(): void {
-    forgetSession();
-    setLastSession(null);
-    pushToast('Session forgotten.');
   }
 
   function startPeerHost(config: HostRoomConfig): void {
@@ -541,16 +385,5 @@ export default function App(): JSX.Element {
   function leavePeer(): void {
     peer.leave();
     goTitle();
-  }
-}
-
-function setRoomParam(code: string | null): void {
-  try {
-    const url = new URL(window.location.href);
-    if (code) url.searchParams.set('room', code);
-    else url.searchParams.delete('room');
-    window.history.replaceState(null, '', `${url.pathname}${url.search ? url.search : ''}`);
-  } catch {
-    // History is unavailable in some embedded views; the app still works.
   }
 }

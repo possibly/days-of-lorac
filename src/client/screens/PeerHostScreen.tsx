@@ -8,9 +8,8 @@ import type { HostRoomConfig } from '../net/peer/session';
 /**
  * Host setup for a table that lives in this tab.
  *
- * Same choices as the online create screen, with one extra note: there is no
- * server, so the phone or laptop that opens the table has to stay awake and in
- * this tab for the whole game.
+ * Same choices as the bot setup, with one extra note: the phone or laptop that
+ * opens the table has to stay awake and in this tab for the whole game.
  */
 export function PeerHostScreen({
   initialName,
@@ -39,10 +38,10 @@ export function PeerHostScreen({
           if (ready) onStart({ name: name.trim(), maxPlayers, difficulty, map });
         }}
       >
-        <p className="eyebrow">No server</p>
+        <p className="eyebrow">Peer table</p>
         <h1 className="panel-title">Host a table</h1>
         <p className="setup-note">
-          The table runs in this tab and phones join directly. No accounts, no internet service.
+          The table runs in this tab and phones join over the relay. No accounts.
           Keep this tab open and awake for the whole game: a refresh ends the table.
         </p>
 

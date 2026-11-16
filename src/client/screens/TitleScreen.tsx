@@ -1,51 +1,30 @@
 import { useState } from 'react';
-import type { LinkState } from '../net/socket';
 import { GuildSeal } from '../ui/icons';
 import { Button } from '../ui/Button';
-import type { StoredSession } from '../net/storage';
 
 interface TitleScreenProps {
   name: string;
   onName: (name: string) => void;
   onSolo: () => void;
-  onCreate: () => void;
-  onJoin: () => void;
-  /** Peer tables need neither a server nor a build flag; shown where useful. */
-  showPeer: boolean;
+  /** True when a relay is configured, which is the only way to play with friends. */
+  multiplayer: boolean;
   onPeerHost: () => void;
   onPeerJoin: () => void;
-  onResume: (code: string) => void;
-  onForget: () => void;
   onRules: () => void;
-  session: StoredSession | null;
-  offline: boolean;
-  link: LinkState;
-  serverVersion: string | null;
   clientVersion: string;
-  latency: number | null;
 }
 
 export function TitleScreen({
   name,
   onName,
   onSolo,
-  onCreate,
-  onJoin,
-  showPeer,
+  multiplayer,
   onPeerHost,
   onPeerJoin,
-  onResume,
-  onForget,
   onRules,
-  session,
-  offline,
-  link,
-  serverVersion,
   clientVersion,
-  latency,
 }: TitleScreenProps): JSX.Element {
   const [showName, setShowName] = useState(false);
-  const mismatch = link === 'open' && serverVersion !== null && serverVersion !== clientVersion;
 
   return (
     <main className="title-screen">
@@ -54,31 +33,21 @@ export function TitleScreen({
         <h1 className="wordmark">Days of Lorac</h1>
         <p className="tagline">A board game of hexes, settlements and deck building.</p>
 
-        {!offline && session ? (
-          <div className="resume-strip">
-            <span>You have a game in room <b className="room-code">{session.code}</b>.</span>
-            <div className="resume-actions">
-              <Button variant="primary" className="btn-small" onClick={() => onResume(session.code)}>Resume</Button>
-              <Button variant="ghost" className="btn-small" onClick={onForget}>Forget</Button>
-            </div>
-          </div>
-        ) : null}
-
         <div className="title-actions">
           <Button variant="primary" className="btn-lg" onClick={onSolo}>Play vs bots</Button>
-          {offline ? null : (
-            <>
-              <Button variant="secondary" className="btn-lg" onClick={onCreate}>Create room</Button>
-              <Button variant="secondary" className="btn-lg" onClick={onJoin}>Join with code</Button>
-            </>
-          )}
-          {showPeer ? (
+          {multiplayer ? (
             <>
               <Button variant="secondary" className="btn-lg" onClick={onPeerHost}>Host a table</Button>
               <Button variant="secondary" className="btn-lg" onClick={onPeerJoin}>Join a table</Button>
             </>
           ) : null}
         </div>
+
+        {!multiplayer ? (
+          <p className="title-note">
+            Solo build. Set a relay URL to play with friends.
+          </p>
+        ) : null}
 
         <button type="button" className="text-link" onClick={onRules}>Rules</button>
 
@@ -109,14 +78,6 @@ export function TitleScreen({
 
       <footer className="footnote">
         <span className="version">v{clientVersion}</span>
-        <span className={`socket socket-${offline || link === 'open' ? 'connected' : link === 'connecting' ? 'connecting' : 'disconnected'}`} title={offline ? 'This build runs entirely in your browser' : mismatch ? `Server runs v${serverVersion}` : 'WebSocket status'}>
-          <span className="socket-dot" aria-hidden="true" />
-          <span className="socket-label">
-            {offline ? 'Offline build' : link === 'open' ? 'Server connected' : link === 'connecting' ? 'Connecting to server' : link === 'idle' ? 'Server idle' : 'Server offline'}
-          </span>
-          {!offline && mismatch ? <span className="socket-warn">v{serverVersion}</span> : null}
-        </span>
-        {!offline && latency !== null && link === 'open' ? <span className="latency">{latency} ms</span> : null}
       </footer>
     </main>
   );

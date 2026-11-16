@@ -2,11 +2,9 @@ import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
-const GAME_SERVER = 'http://127.0.0.1:8096';
-
 /**
- * GitHub Pages serves a project site under /<repo>/, so the offline build needs
- * a base. Set VITE_BASE at build time; the game server build keeps '/'.
+ * GitHub Pages serves a project site under /<repo>/, so the deployed build needs
+ * a base. Set VITE_BASE at build time; local builds keep '/'.
  */
 const base = process.env.VITE_BASE ?? '/';
 
@@ -25,10 +23,6 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
-    proxy: {
-      '/api': { target: GAME_SERVER, changeOrigin: true },
-      '/ws': { target: GAME_SERVER, ws: true, changeOrigin: true },
-    },
   },
   build: {
     outDir: '../../dist/client',

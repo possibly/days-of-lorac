@@ -1,17 +1,13 @@
 /**
- * One WebSocket client for the whole app.
+ * Room-protocol client for peer tables.
+ *
+ * The host's tab runs the room manager; guests reach it over a WebRTC data
+ * channel. There is no origin WebSocket and no reconnect address, so this client
+ * only ever talks over a transport handed to it by `attachTransport`.
  *
  * Module-level singleton on purpose: React StrictMode mounts effects twice, so
  * a hook-owned socket would connect twice and seat the player twice. Callers
  * only ever touch `client`, and `start()` is idempotent.
- *
- * Responsibilities:
- *   - connect to /ws, parse typed ServerMessages,
- *   - check the welcome version before anything else,
- *   - resume with the stored token on every reconnect,
- *   - exponential backoff, bot-pilot flag after 45s,
- *   - hold one pending action across a drop and resend it exactly once, only
- *     after the resumed view proves the original send never landed.
  */
 import type {
   ChatMessage,
@@ -22,13 +18,10 @@ import type {
 } from '@shared/protocol';
 import type { GameAction, GameView, MapSettings, Seat } from '@shared/types';
 import { GAME_VERSION } from '@shared/version';
-import { clearToken, loadToken, saveToken } from './storage';
-import { SOCKET_CONNECTING, SOCKET_OPEN } from './peer/socket-like';
+import { SOCKET_OPEN } from './peer/socket-like';
 import type { SocketLike } from './peer/socket-like';
 
 const MAX_CHAT = 40;
-const BOT_PILOT_MS = 45_000;
-const BACKOFF = [400, 900, 1800, 3600, 7200, 10000];
 
 export type LinkState = 'idle' | 'connecting' | 'open' | 'closed';
 
@@ -47,7 +40,6 @@ export interface ClientSnapshot {
   ready: boolean;
   roomCode: string | null;
   you: Seat | null;
-  token: string | null;
   /** Host seat of the room, from the lobby or a game message. */
   hostSeat: Seat | null;
   /** Seats a bot is flying because the human dropped mid-game. */
@@ -57,17 +49,6 @@ export interface ClientSnapshot {
   error: WireError | null;
   chats: ChatMessage[];
   roomClosed: string | null;
-  attempt: number;
-  droppedAt: number | null;
-  botPilot: boolean;
-  latency: number | null;
-  /** Set when a resume attempt is in flight, so screens can show a spinner. */
-  resuming: boolean;
-}
-
-function wsUrl(): string {
-  const scheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${scheme}//${window.location.host}/ws`;
 }
 
 const INITIAL: ClientSnapshot = {
@@ -77,7 +58,6 @@ const INITIAL: ClientSnapshot = {
   ready: false,
   roomCode: null,
   you: null,
-  token: null,
   hostSeat: null,
   pilotSeats: [],
   lobby: null,
@@ -85,11 +65,6 @@ const INITIAL: ClientSnapshot = {
   error: null,
   chats: [],
   roomClosed: null,
-  attempt: 0,
-  droppedAt: null,
-  botPilot: false,
-  latency: null,
-  resuming: false,
 };
 
 type Listener = () => void;
@@ -98,20 +73,8 @@ export class GameClient {
   private snapshot: ClientSnapshot = INITIAL;
   private listeners = new Set<Listener>();
   private socket: SocketLike | null = null;
-  /** When set, `connect` asks this for a socket instead of opening /ws. */
+  /** When set, `connect` asks this for a socket instead of opening one itself. */
   private transport: (() => SocketLike) | null = null;
-  private autoReconnect = true;
-  private retryTimer: number | undefined;
-  private botTimer: number | undefined;
-  private pingTimer: number | undefined;
-  private resume: { code: string; token: string } | null = null;
-  private pendingAction: { message: ClientMessage; seq: number } | null = null;
-  /**
-   * Set when `resume` went out with an unconfirmed action still held. The next
-   * view decides: a higher version means it already applied.
-   */
-  private gate: { seq: number; versionAtSend: number | null; resent: boolean } | null = null;
-  private outbox: ClientMessage[] = [];
   private seq = 0;
   private disposed = false;
 
@@ -135,41 +98,24 @@ export class GameClient {
 
   /** Idempotent: safe to call from an effect that StrictMode runs twice. */
   start(): void {
-    if (this.disposed) return;
-    if (this.socket && (this.socket.readyState === SOCKET_OPEN || this.socket.readyState === SOCKET_CONNECTING)) {
-      return;
-    }
+    if (this.disposed || !this.transport || this.socket) return;
     this.connect();
   }
 
-  /**
-   * Play over something that is not /ws: a data channel to the host, or the
-   * host's own loopback. Resets session state first, because the peer host is a
-   * different table with its own tokens. Peer links do not retry: there is no
-   * address to reconnect to, so a lost channel is reported as closed.
-   */
+  /** Play over a data channel to the host, or the host's own loopback. */
   attachTransport(transport: () => SocketLike): void {
     this.resetSession();
     this.transport = transport;
-    this.autoReconnect = false;
     this.disposed = false;
     this.connect();
   }
 
-  /** Back to the origin socket, with normal reconnect behaviour. */
   detachTransport(): void {
     this.transport = null;
-    this.autoReconnect = true;
     this.resetSession();
   }
 
   private resetSession(): void {
-    if (this.retryTimer !== undefined) window.clearTimeout(this.retryTimer);
-    if (this.botTimer !== undefined) window.clearTimeout(this.botTimer);
-    if (this.pingTimer !== undefined) window.clearInterval(this.pingTimer);
-    this.retryTimer = undefined;
-    this.botTimer = undefined;
-    this.pingTimer = undefined;
     if (this.socket) {
       this.socket.onopen = null;
       this.socket.onmessage = null;
@@ -182,63 +128,33 @@ export class GameClient {
       }
     }
     this.socket = null;
-    this.resume = null;
-    this.pendingAction = null;
-    this.gate = null;
-    this.outbox = [];
     this.snapshot = { ...INITIAL };
     for (const listener of this.listeners) listener();
   }
 
   stop(): void {
     this.disposed = true;
-    if (this.retryTimer !== undefined) window.clearTimeout(this.retryTimer);
-    if (this.botTimer !== undefined) window.clearTimeout(this.botTimer);
-    if (this.pingTimer !== undefined) window.clearInterval(this.pingTimer);
     this.socket?.close();
     this.socket = null;
   }
 
   private connect(): void {
-    if (this.disposed) return;
-    if (this.socket) {
-      this.socket.onopen = null;
-      this.socket.onmessage = null;
-      this.socket.onclose = null;
-      this.socket.onerror = null;
-      try {
-        this.socket.close();
-      } catch {
-        // already closed
-      }
-    }
+    if (this.disposed || !this.transport) return;
     this.update({ link: 'connecting' });
     let socket: SocketLike;
     try {
-      // WebSocket's handler signatures are wider than SocketLike's; the runtime
-      // shape is identical and `onmessage` only reads `event.data`.
-      socket = this.transport ? this.transport() : (new WebSocket(wsUrl()) as unknown as SocketLike);
+      socket = this.transport();
     } catch {
-      this.scheduleReconnect();
+      this.update({ link: 'closed' });
       return;
     }
     this.socket = socket;
 
     socket.onopen = () => {
       if (this.socket !== socket) return;
-      this.update({
-        link: 'open',
-        attempt: 0,
-        droppedAt: null,
-        botPilot: false,
-        error: null,
-      });
-      if (this.botTimer !== undefined) window.clearTimeout(this.botTimer);
-      this.botTimer = undefined;
-      // The server greets first; resume and queued intents wait for `welcome`
-      // so a version mismatch never touches a seat.
-      if (this.pingTimer !== undefined) window.clearInterval(this.pingTimer);
-      this.pingTimer = window.setInterval(() => this.send({ type: 'ping', t: Date.now() }), 25_000);
+      this.update({ link: 'open', error: null });
+      // The host greets first; intents wait for `welcome` so a version mismatch
+      // never touches a seat.
     };
 
     socket.onmessage = (event: { data: string }) => {
@@ -255,35 +171,12 @@ export class GameClient {
     socket.onclose = () => {
       if (this.socket !== socket) return;
       this.socket = null;
-      if (this.pingTimer !== undefined) window.clearInterval(this.pingTimer);
-      this.pingTimer = undefined;
-      this.update({
-        link: 'closed',
-        droppedAt: Date.now(),
-        attempt: this.snapshot.attempt + 1,
-        resuming: false,
-      });
-      if (this.snapshot.roomCode && this.snapshot.token) {
-        if (this.botTimer !== undefined) window.clearTimeout(this.botTimer);
-        this.botTimer = window.setTimeout(() => {
-          this.update({ botPilot: true });
-        }, BOT_PILOT_MS);
-      }
-      this.scheduleReconnect();
+      this.update({ link: 'closed', ready: false });
     };
 
     socket.onerror = () => {
-      // `close` follows and owns the retry.
+      // `close` follows and owns the state change.
     };
-  }
-
-  private scheduleReconnect(): void {
-    if (this.disposed || !this.autoReconnect) return;
-    if (this.retryTimer !== undefined) window.clearTimeout(this.retryTimer);
-    const step = Math.min(this.snapshot.attempt, BACKOFF.length - 1);
-    const base = BACKOFF[step] ?? 10000;
-    const delay = base + Math.floor(Math.random() * 250);
-    this.retryTimer = window.setTimeout(() => this.connect(), delay);
   }
 
   // ----- outbound ----------------------------------------------------------
@@ -299,74 +192,13 @@ export class GameClient {
     }
   }
 
-  /** Sends now or queues until open. Intents are replayed in order. */
   send(message: ClientMessage): void {
-    if (this.transmit(message)) return;
-    if (message.type === 'action') return; // actions go through sendAction
-    this.outbox.push(message);
-    if (this.outbox.length > 12) this.outbox.shift();
-    this.start();
+    this.transmit(message);
   }
 
   sendAction(action: GameAction): void {
     this.seq += 1;
-    const message: ClientMessage = { type: 'action', action, seq: this.seq };
-    this.pendingAction = { message, seq: this.seq };
-    this.gate = null;
-    if (!this.transmit(message)) {
-      // Held in memory; replayed after the next successful resume.
-      return;
-    }
-  }
-
-  private flush(): void {
-    const queued = this.outbox;
-    this.outbox = [];
-    for (const message of queued) this.transmit(message);
-  }
-
-  // ----- session -----------------------------------------------------------
-
-  /** Prime a resume. Call before `start()` when the URL names a room. */
-  resumeSession(code: string, token: string): void {
-    this.resume = { code: code.toUpperCase(), token };
-    this.update({ resuming: true, error: null });
-    this.start();
-  }
-
-  private maybeResume(): void {
-    const token = this.snapshot.token;
-    const code = this.snapshot.roomCode;
-    const target =
-      this.resume ??
-      (code && token ? { code, token } : null);
-    this.resume = target;
-    if (!target) {
-      this.update({ resuming: false });
-      this.flush();
-      return;
-    }
-    const sent = this.transmit({ type: 'resume', code: target.code, token: target.token });
-    this.update({ resuming: sent });
-    if (!sent) return;
-    // A lost reply and a lost send look identical from here, so never resend
-    // blind. The next view decides; only an unchanged version earns one retry.
-    if (this.pendingAction) {
-      const pending = this.pendingAction;
-      if (!this.gate || this.gate.seq !== pending.seq) {
-        this.gate = { seq: pending.seq, versionAtSend: this.snapshot.game?.version ?? null, resent: false };
-      }
-    }
-  }
-
-  forget(): void {
-    const code = this.snapshot.roomCode;
-    if (code) clearToken(code);
-    this.resume = null;
-    this.pendingAction = null;
-    this.gate = null;
-    this.outbox = [];
-    this.update({ ...INITIAL, link: this.snapshot.link, serverVersion: this.snapshot.serverVersion, ready: this.snapshot.ready });
+    this.transmit({ type: 'action', action, seq: this.seq });
   }
 
   clearError(): void {
@@ -388,47 +220,29 @@ export class GameClient {
           mismatch,
           ready: !mismatch,
         });
-        if (mismatch) {
-          // Never resume against a server with a different protocol build.
-          return;
-        }
-        this.maybeResume();
         return;
       }
       case 'lobby': {
-        saveToken(message.room.code, message.token, message.you);
-        this.resume = { code: message.room.code, token: message.token };
         this.update({
           lobby: message.room,
           you: message.you,
-          token: message.token,
           roomCode: message.room.code,
           hostSeat: message.room.hostSeat,
           pilotSeats: [],
-          resuming: false,
           game: message.room.status === 'lobby' ? null : this.snapshot.game,
           error: null,
         });
-        this.pendingAction = null;
-        this.gate = null;
         return;
       }
       case 'game': {
-        saveToken(message.roomCode, message.token, message.you);
-        this.resume = { code: message.roomCode, token: message.token };
-        this.resolvePending(message.view.version);
         this.update({
           game: message.view,
           you: message.you,
-          token: message.token,
           roomCode: message.roomCode,
           hostSeat: message.hostSeat ?? this.snapshot.hostSeat ?? (this.snapshot.lobby?.hostSeat ?? null),
           pilotSeats: Array.isArray(message.pilotSeats) ? message.pilotSeats.slice() : [],
-          resuming: false,
           error: null,
         });
-        this.pendingAction = null;
-        this.gate = null;
         return;
       }
       case 'error': {
@@ -438,31 +252,19 @@ export class GameClient {
           at: Date.now(),
         };
         if (message.seq !== undefined) error.seq = message.seq;
-        if (message.seq !== undefined && this.pendingAction?.seq === message.seq) {
-          this.pendingAction = null;
-          this.gate = null;
-        }
         const gone = message.code === 'ROOM_NOT_FOUND' || message.code === 'NOT_IN_ROOM';
         if (gone) {
-          const code = this.snapshot.roomCode;
-          if (code) clearToken(code);
-          this.resume = null;
-          this.pendingAction = null;
-          this.gate = null;
-          this.outbox = [];
           this.update({
             roomCode: null,
             lobby: null,
             game: null,
             you: null,
-            token: null,
             hostSeat: null,
             pilotSeats: [],
-            resuming: false,
             error,
           });
         } else {
-          this.update({ error, resuming: false });
+          this.update({ error });
         }
         return;
       }
@@ -471,45 +273,20 @@ export class GameClient {
         return;
       }
       case 'roomClosed': {
-        const code = this.snapshot.roomCode;
-        if (code) clearToken(code);
-        this.resume = null;
-        this.pendingAction = null;
-        this.gate = null;
         this.update({
           roomClosed: message.reason,
           roomCode: null,
           lobby: null,
           game: null,
           you: null,
-          token: null,
           hostSeat: null,
           pilotSeats: [],
         });
         return;
       }
-      case 'pong': {
-        if (message.t !== null) this.update({ latency: Math.max(0, Date.now() - message.t) });
-        return;
-      }
       default:
         return;
     }
-  }
-
-  /**
-   * Decide what to do with an action held across a reconnect. A higher version
-   * than the one at send time means the server applied it and only the reply
-   * was lost, so the action is dropped. Otherwise it is resent exactly once.
-   */
-  private resolvePending(version: number): void {
-    const pending = this.pendingAction;
-    const gate = this.gate;
-    if (!pending || !gate || gate.seq !== pending.seq) return;
-    if (gate.versionAtSend !== null && version > gate.versionAtSend) return; // applied
-    if (gate.resent) return; // already retried once; give up quietly
-    gate.resent = true;
-    this.transmit(pending.message);
   }
 
   // ----- convenience intents ----------------------------------------------
@@ -538,11 +315,6 @@ export class GameClient {
 
   leaveRoom(): void {
     this.send({ type: 'leaveRoom' });
-    const code = this.snapshot.roomCode;
-    if (code) clearToken(code);
-    this.resume = null;
-    this.pendingAction = null;
-    this.gate = null;
     this.update({
       ...INITIAL,
       link: this.snapshot.link,
@@ -579,14 +351,6 @@ export class GameClient {
   chat(text: string): void {
     this.send({ type: 'chat', text });
   }
-
-  /** Replay the last stored room after a page reload. */
-  resumeStored(code: string): boolean {
-    const token = loadToken(code);
-    if (!token) return false;
-    this.resumeSession(code, token);
-    return true;
-  }
 }
 
 export const onlineClient = new GameClient();
@@ -595,5 +359,4 @@ export const onlineClient = new GameClient();
 if ((import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV && typeof window !== 'undefined') {
   (window as unknown as { __lorac?: GameClient }).__lorac = onlineClient;
 }
-export { wsUrl };
 export type { SocketLike };

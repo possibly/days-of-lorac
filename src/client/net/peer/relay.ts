@@ -100,8 +100,8 @@ export class RelayHost {
 
   /**
    * Tries codes until one is free. Rejects when the relay is unreachable, with
-   * an overall budget so a blackholed network falls back to direct invites
-   * instead of leaving the host staring at a spinner.
+   * an overall budget so a blackholed network reports a clear error instead of
+   * leaving the host staring at a spinner.
    */
   async start(attempts = 6, budgetMs = 8000): Promise<string> {
     const deadline = Date.now() + budgetMs;

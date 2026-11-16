@@ -3,7 +3,6 @@ import type { BankTradeOption, CardInstance, GameAction, GameView, PartialResour
 import type { ChatMessage } from '@shared/protocol';
 import { getCard } from '@shared/cards';
 import { LARGEST_EXPEDITION_MIN } from '@shared/constants';
-import type { LinkState } from '../net/socket';
 import { ActionBar } from '../action/ActionBar';
 import type { Pending } from '../action/types';
 import { BoardFrame } from '../board/BoardFrame';
@@ -27,9 +26,7 @@ export interface GameScreenProps {
   view: GameView;
   you: Seat;
   connected: boolean;
-  link: LinkState;
-  botPilot: boolean;
-  /** Seats a bot is flying, from the socket snapshot. */
+  /** Seats a bot is flying, from the room snapshot. */
   pilotSeats: number[];
   chats: ChatMessage[];
   onChat: (text: string) => void;
@@ -52,8 +49,6 @@ export function GameScreen({
   view,
   you,
   connected,
-  link,
-  botPilot,
   pilotSeats,
   chats,
   onChat,
@@ -648,14 +643,7 @@ export function GameScreen({
 
       {!connected ? (
         <div className="reconnect-banner" role="status">
-          <span>Connection lost. Reconnecting…</span>
-          <span className="indeterminate" aria-hidden="true" />
-        </div>
-      ) : null}
-
-      {botPilot ? (
-        <div className="pilot-strip" role="status" title="Bot pilot">
-          A bot is playing your seat. Reconnect to take back control.
+          <span>Connection lost. The table is gone.</span>
         </div>
       ) : null}
 

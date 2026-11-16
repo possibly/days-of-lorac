@@ -1,7 +1,7 @@
 # Days of Lorac: project brief
 
 Working title. Browser board game: Settlers of Catan meets a deck builder.
-2-4 players, bots, online rooms over Tailscale, single Node process.
+2-4 players, bots, and peer tables through a small signaling relay.
 
 This file is the contract between the lead and the subagents. Read it before
 starting. If something here is wrong, say so in your report instead of silently
@@ -11,8 +11,8 @@ changing it.
 
 A finished, fun, replayable game that a group can open in a browser and play
 for 25-35 minutes. One human should be able to start a game against three bots
-in two clicks and have a good time. Online rooms should work across devices on
-the tailnet.
+in two clicks and have a good time. Multiplayer should work across devices
+without a game server holding the state.
 
 "Fun" means:
 - A real decision every turn: what to build, which card to buy, whether to
@@ -31,24 +31,23 @@ the tailnet.
 - TypeScript everywhere. One package, one repo.
 - Client: React 18 + Vite. No UI framework, no CSS framework, no external
   fonts, no CDN assets. Inline SVG/CSS art only, so the game works offline.
-- Server: Node 24, `ws` for WebSocket, node:http for static file serving.
-  Authoritative game state. No database. In-memory rooms.
+- Rooms: no hosted game server. The host's tab runs the room manager and every
+  guest connects to it over a WebRTC data channel. A Cloudflare Worker carries
+  signaling only. No database. In-memory rooms.
 - Shared engine: pure TypeScript, deterministic, seeded RNG, no DOM and no
-  Node imports. The server and the balance simulator both use it.
+  Node imports. The room manager and the balance simulator both use it.
 - Tests: vitest for the engine, plus a headless bot simulation that plays full
   games.
 - Dev/build:
-  - `npm run dev` runs Vite and the game server together.
-  - `npm run build` builds the client into `dist/client`.
-  - `npm start` runs the server against the built client, binds `0.0.0.0:8096`
-    (override with `PORT`).
+  - `npm run dev` runs Vite. The game starts in the tab with bots.
+  - `npm run build` builds the static client into `dist/client`.
+  - `VITE_RELAY_URL` at build time, or `?relay=` at runtime, enables peer
+    tables. Without it the build is solo only.
   - `npm test` runs unit tests.
-- The production URL on the tailnet will be `http://100.69.138.118:8096`
-  (and optionally a Tailscale serve HTTPS proxy later). The server must bind
-  0.0.0.0, not localhost.
+- Production is a static site (GitHub Pages) plus the optional relay.
 - File layout:
   - `src/shared/` engine, types, card data, protocol types, view filtering.
-  - `src/server/` HTTP/WS, rooms, bot runner, simulation scripts.
+  - `src/server/` room manager, message router, bot policy, simulation scripts.
   - `src/client/` React app.
   - `docs/` design docs.
   - `scripts/` dev/smoke/balance helpers.
@@ -106,12 +105,13 @@ cards) +2. Some cards score VP directly and become dead draws.
 
 ### Online
 
-- Create room -> 4-letter code and shareable link `?room=CODE`.
-- Join, pick seat, host adds bots, everyone readies, host starts.
-- Server filters hidden information per player (hand, deck order, other
+- Multiplayer needs a relay URL. Without one the title screen offers solo only.
+- Host a table, then share the 4-letter code or its QR link (`#code=CODE`).
+- Guests join, take a seat, the host adds bots, everyone readies, host starts.
+- The host's tab filters hidden information per player (hand, deck order, other
   players' resources are public in Catan; keep resources public).
-- Reconnect with a stored token. If a human drops mid-game, the server may
-  let a bot take over after a timeout and hand control back on reconnect.
+- If a guest drops, the host's room manager may let a bot fly the seat. A
+  closed channel is not resumed: the guest starts a new table.
 - No account system. Name only.
 
 ## Design and code quality bar
@@ -147,18 +147,17 @@ cards) +2. Some cards score VP directly and become dead draws.
 
 ## Waves
 
-1. Design (GAME-DESIGN.md, CARDS.md) + scaffold (package, server, client
+1. Design (GAME-DESIGN.md, CARDS.md) + scaffold (package, room layer, client
    shell, build).
 2. Contracts: shared types, action list, protocol, file map. Written by the
    lead or an architect agent.
-3. Engine, server rooms, client shell in parallel against contracts.
+3. Engine, room layer, client shell in parallel against contracts.
 4. Bots, integration, full playable loop.
 5. Balance simulation, UX polish, QA, screenshots.
 6. Final hardening and handoff.
 
-## Current port and environment
+## Current environment
 
 - macOS, Node 24.22.1, npm 11.x.
-- Port 8096 is reserved for this game.
 - Chrome is available for headless screenshots.
-- Tailscale IP: 100.69.138.118.
+- The deployed game is a static site; the relay is the only service.

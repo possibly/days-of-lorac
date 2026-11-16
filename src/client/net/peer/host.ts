@@ -1,14 +1,13 @@
 /**
- * Peer host: the real game server, running in this tab.
+ * Peer host: the real game room, running in this tab.
  *
- * The RoomManager, the wire router and the bot policy are the same modules the
- * Node server uses. The only difference is the transport: instead of sockets
- * there is one RTCDataChannel per guest, plus a loopback pair for the host's own
- * seat, so the host is an ordinary client of their own table.
+ * The RoomManager and the wire router are the same modules the offline bot game
+ * uses. The only difference is the transport: one RTCDataChannel per guest, plus
+ * a loopback pair for the host's own seat, so the host is an ordinary client of
+ * their own table.
  *
- * Signaling is manual. `createInvite` builds a peer connection and returns an
- * offer link; `acceptAnswer` takes the guest's reply code. No server sees
- * either, and no TURN server is involved.
+ * Signaling lives in `relay.ts`. This file only knows how to turn an open data
+ * channel into a client of the room.
  */
 import { GAME_VERSION } from '@shared/version';
 import type { ServerMessage } from '@shared/protocol';
@@ -17,27 +16,9 @@ import { RoomManager } from '../../../server/room-manager.js';
 import { routeClientMessage, sendError, SocketRateLimiter } from '../../../server/message-router.js';
 import { systemClock } from '../../../server/rooms.js';
 import type { ClientConnection } from '../../../server/rooms.js';
-import { decodeCode, encodeCode } from './codec';
 import type { GameClient } from '../socket';
 import { createLoopback } from './socket-like';
 import type { LoopbackPair } from './socket-like';
-import { gatheredDescription, ICE_SERVERS, isAnswer, joinUrl, trimSdp } from './signaling';
-import type { AnswerPayload, OfferPayload } from './signaling';
-
-export interface HostInvite {
-  id: string;
-  /** Share this. It carries the offer in the fragment. */
-  link: string;
-  /** The same payload, for QR display and for pasting by hand. */
-  code: string;
-  connected: boolean;
-}
-
-interface PendingInvite extends HostInvite {
-  pc: RTCPeerConnection;
-  channel: RTCDataChannel;
-  conn: ClientConnection | null;
-}
 
 export interface RoomSummary {
   code: string;
@@ -48,11 +29,8 @@ export interface RoomSummary {
 export class PeerHost {
   private readonly manager: RoomManager;
   private readonly pair: LoopbackPair;
-  private readonly pending = new Map<string, PendingInvite>();
   private managerRoom: RoomSummary | null = null;
-  private nextId = 0;
   private disposed = false;
-  private onInvites: (() => void) | null = null;
 
   private connectionCounter = 0;
 
@@ -88,114 +66,12 @@ export class PeerHost {
     return this.managerRoom;
   }
 
-  onInviteChange(listener: () => void): void {
-    this.onInvites = listener;
-  }
-
-  invites(): HostInvite[] {
-    return [...this.pending.values()].map(({ id, link, code, connected }) => ({ id, link, code, connected }));
-  }
-
-  /** Creates a peer connection per invite: one offer can only serve one guest. */
-  async createInvite(): Promise<HostInvite> {
-    const room = this.managerRoom;
-    if (!room) throw new Error('The room is not open yet.');
-
-    const id = `p${(this.nextId += 1)}`;
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-    const channel = pc.createDataChannel('lorac', { ordered: true });
-    const invite: PendingInvite = { id, link: '', code: '', connected: false, pc, channel, conn: null };
-    this.pending.set(id, invite);
-
-    channel.onopen = () => {
-      if (this.disposed) return;
-      invite.connected = true;
-      invite.conn = this.addChannel(channel);
-      this.onInvites?.();
-    };
-    channel.onclose = () => {
-      invite.conn = null;
-      invite.connected = false;
-      this.pending.delete(id);
-      this.onInvites?.();
-    };
-    channel.onerror = () => {
-      // `close` follows and owns cleanup.
-    };
-    pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
-        invite.conn = null;
-        this.pending.delete(id);
-        this.onInvites?.();
-      }
-    };
-
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    const sdp = trimSdp(await gatheredDescription(pc));
-    const payload: OfferPayload = {
-      v: 1,
-      t: 'offer',
-      id,
-      room: room.code,
-      host: room.host,
-      seats: room.seats,
-      sdp,
-    };
-    invite.code = await encodeCode(payload);
-    invite.link = joinUrl(window.location.href, invite.code);
-    this.onInvites?.();
-    return { id, link: invite.link, code: invite.code, connected: false };
-  }
-
-  async acceptAnswer(input: string): Promise<{ ok: true } | { ok: false; reason: string }> {
-    const payload = await decodeCode<AnswerPayload>(input);
-    if (!isAnswer(payload)) return { ok: false, reason: 'That is not a reply code.' };
-    const invite = this.pending.get(payload.id);
-    if (!invite) {
-      return { ok: false, reason: 'That reply belongs to an invite that is no longer waiting.' };
-    }
-    if (invite.pc.signalingState !== 'have-local-offer') {
-      return { ok: false, reason: 'That invite already has a reply.' };
-    }
-    try {
-      await invite.pc.setRemoteDescription({ type: 'answer', sdp: payload.sdp });
-      return { ok: true };
-    } catch {
-      return { ok: false, reason: 'The reply did not match this invite. Ask for a fresh one.' };
-    }
-  }
-
-  dropInvite(id: string): void {
-    const invite = this.pending.get(id);
-    if (!invite) return;
-    try {
-      invite.pc.close();
-    } catch {
-      // already closed
-    }
-    this.pending.delete(id);
-    this.onInvites?.();
-  }
-
   dispose(): void {
     this.disposed = true;
-    for (const invite of this.pending.values()) {
-      try {
-        invite.pc.close();
-      } catch {
-        // already closed
-      }
-    }
-    this.pending.clear();
     this.pair.close();
   }
 
-  /**
-   * Wires an open data channel into the manager as a fresh client. Manual
-   * invites and the relay both end up here, so seat handling, welcome, rate
-   * limiting and disconnect are written once.
-   */
+  /** Wires an open data channel into the manager as a fresh client. */
   addChannel(channel: RTCDataChannel): ClientConnection | null {
     if (this.disposed || channel.readyState !== 'open') return null;
     const connectionId = `peer-c${(this.connectionCounter += 1)}`;
@@ -230,7 +106,7 @@ export class PeerHost {
     return conn;
   }
 
-  /** Same contract as `ws.ts`: parse, route, never throw into the channel. */
+  /** Parse, route, never throw into the channel. */
   private receive(conn: ClientConnection, raw: string): void {
     let parsed: unknown;
     try {

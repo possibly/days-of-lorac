@@ -2,27 +2,20 @@
 
 Catan meets a deck builder, in the browser. Two to four players build an outpost
 on the island, roll for production, and buy guild cards that turn goods into
-victory points. Bots, online rooms, and a fully offline build all run the same
-shared engine.
+victory points. Bots and peer tables run the same shared engine.
 
 ## Play
 
-- **Offline (GitHub Pages):** https://possibly.github.io/days-of-lorac/
-  The whole game runs in the tab, bots included. No server, no network calls.
-  A refresh starts a new game.
-- **Online (own server):** `npm start`, then open `http://localhost:8096`.
-  Create a room, share the four-letter code or `?room=CODE` link, add bots to
-  open seats. Refresh resumes your seat.
-- **Peer table (no game server):** in the Pages build, choose "Host a table".
-  Guests type a four-letter code (or scan it) and connect straight to the host's
-  tab over WebRTC. The code is introduced by a small Cloudflare relay that only
-  carries the handshake; game data stays between the browsers. Without a relay
-  the same table works with invite links and reply codes. See
-  [docs/PEER.md](docs/PEER.md) and [relay/README.md](relay/README.md).
+- **Solo:** https://possibly.github.io/days-of-lorac/
+  The whole game, bots included, runs in the tab. Refresh starts a new game.
+- **With friends:** host a table, share the four-letter code, and guests join
+  from any device. The host's tab holds the room; game data goes straight
+  between the browsers over WebRTC. The Cloudflare relay only carries the
+  handshake.
 
-Peer tables are the only mode that works on a static host with no service
-behind it. The trade is that the host's tab has to stay open and awake for the
-whole game, and a refresh ends the table.
+Multiplayer is off unless the build has a relay URL. Without one the title
+screen offers solo play only. The host's tab has to stay open and awake for the
+whole game, and a refresh ends the table. See [docs/PEER.md](docs/PEER.md).
 
 Victory target is 14 points with four players, 16 with three, 18 with two.
 Settlements score 1, cities 2, each award 2, charters 1 or 2. One market
@@ -32,37 +25,28 @@ purchase per turn. A game runs roughly 25 to 35 minutes.
 
 ```bash
 npm install
-npm run dev      # Vite on :5173, game server on :8096
+npm run dev      # Vite on :5173
 ```
 
-Production build and server:
+Build the static site:
 
 ```bash
-npm run build
-npm start        # serves dist/client and /ws on 0.0.0.0:8096
+VITE_BASE=/days-of-lorac/ VITE_RELAY_URL=https://…workers.dev npm run build
 ```
 
-Static build for GitHub Pages (no server, offline mode):
+`VITE_BASE` matches the site path: `/<repo>/` for a project page, `/` for a user
+page or custom domain. `VITE_RELAY_URL` is optional. Pass `?relay=https://…` per
+visit to try a relay without rebuilding; `?relay=off` forces solo.
 
-```bash
-VITE_BASE=/days-of-lorac/ npm run build:offline
-```
-
-Set `VITE_RELAY_URL` at build time, or pass `?relay=https://…workers.dev`, to
-give the static build short join codes. Without one it offers direct invites.
-
-The offline flag is `VITE_OFFLINE=1`. Add `?offline=1` to any build to test the
-offline path without rebuilding. `VITE_BASE` must match the site path: `/<repo>/`
-for a project page, `/` for a user page or local server.
+Deploy the relay once, then set the repository variable `LORAC_RELAY_URL` so the
+Pages build picks it up. Until then the deployed game is solo only.
 
 ## Commands
 
 | Command | What it does |
 | --- | --- |
-| `npm run dev` | Game server plus Vite, hot reload. |
+| `npm run dev` | Vite with hot reload on :5173. |
 | `npm run build` | Typecheck and build the client into `dist/client`. |
-| `npm run build:offline` | Same, with the in-browser store and no WebSocket. |
-| `npm start` | Serve the built client and WebSocket on :8096. |
 | `npm test` | Engine, rooms, bots, and protocol tests. |
 | `npm run check` | TypeScript only. |
 | `npm run sim -- 50` | Headless balance run, 50 games per matchup. |
@@ -70,15 +54,18 @@ for a project page, `/` for a user page or local server.
 | `npm run relay:deploy` | Deploy the relay (free plan, needs `wrangler login`). |
 | `npm run relay:check` | Typecheck the relay Worker. |
 
+To try multiplayer locally, start the relay, then open
+`http://127.0.0.1:5173/?relay=http://127.0.0.1:8787`.
+
 ## Layout
 
 ```
 src/shared/       types, constants, cards, protocol, pure engine
 src/shared/engine board, setup, actions, cards, awards, legal moves, views
-src/server/       HTTP, rooms, reconnect, bot runner
-src/server/bots/  bot policy and balance simulator
+src/server/       room manager, message router, bot policy and balance simulator
 src/client/       React app, SVG board, hand, market, trade, modals
-src/client/net/peer/  WebRTC peer tables: codec, signaling, host, guest, session
+src/client/net/peer/  WebRTC peer tables: relay signaling, host, session
+relay/            Cloudflare Worker and Durable Object for signaling
 docs/             rules, card manifest, UI spec, contracts
 ```
 

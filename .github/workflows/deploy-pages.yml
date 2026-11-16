@@ -1,4 +1,4 @@
-name: Deploy offline build to GitHub Pages
+name: Deploy to GitHub Pages
 
 on:
   push:
@@ -31,11 +31,11 @@ jobs:
 
       # VITE_BASE matches the project page path. A user page or custom domain
       # would set this to /.
-      - run: npm run build:offline
+      - run: npm run build
         env:
           VITE_BASE: /${{ github.event.repository.name }}/
           # Set the repository variable LORAC_RELAY_URL after deploying
-          # relay/. Empty means the build offers direct invites only.
+          # relay/. Empty means the build is solo only.
           VITE_RELAY_URL: ${{ vars.LORAC_RELAY_URL }}
 
       - uses: actions/configure-pages@v5

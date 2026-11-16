@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { LobbyView } from '@shared/protocol';
 import type { ChatMessage } from '@shared/protocol';
 import type { BotDifficulty, MapSettings, Seat } from '@shared/types';
@@ -6,8 +6,6 @@ import { describeMap } from '@shared/map-settings';
 import { Button } from '../ui/Button';
 import { MapSettingsForm } from '../ui/MapSettingsForm';
 import { SeatCoin } from '../ui/SeatCoin';
-import { copyText } from '../ui/clipboard';
-import type { CopyResult } from '../ui/clipboard';
 import { PeerInvitePanel } from './PeerInvitePanel';
 import { usePeer } from '../net/peer/usePeer';
 
@@ -40,52 +38,23 @@ export function LobbyScreen({
   onChat,
   onRules,
 }: LobbyScreenProps): JSX.Element {
-  const [copyState, setCopyState] = useState<CopyResult | null>(null);
   const [text, setText] = useState('');
-  // The server owns the map setting. The draft keeps rapid clicks from
-  // snapping back to the last broadcast while a change is in flight.
+  // The host owns the map setting. The draft keeps rapid clicks from snapping
+  // back to the last broadcast while a change is in flight.
   const [mapDraft, setMapDraft] = useState<MapSettings>(lobby.config.map);
-  const link = useRef<HTMLInputElement>(null);
   const me = lobby.players.find((player) => player.seat === you);
-  // A peer table has no address to share: the invite lives in this tab.
   const peerState = usePeer();
   const peerHosting = peerState.role === 'host';
-  const peerActive = peerState.role !== 'idle';
   const isHost = lobby.hostSeat === you;
   const openSeats = Math.max(0, lobby.config.maxPlayers - lobby.players.length);
   // The host's ready flag is implicit: the host opens the table, so only the
   // guests have to say they are in. Two filled seats is still the floor.
   const guests = lobby.players.filter((player) => !player.isBot && player.seat !== lobby.hostSeat);
   const allGuestsReady = guests.every((player) => player.ready);
-  const invite = typeof window === 'undefined' ? '' : `${window.location.origin}${window.location.pathname}?room=${lobby.code}`;
 
   useEffect(() => {
     setMapDraft(lobby.config.map);
   }, [lobby.config.map.size, lobby.config.map.terrain, lobby.config.map.tokens]);
-
-  useEffect(() => {
-    if (!copyState) return undefined;
-    const timer = window.setTimeout(() => setCopyState(null), 3200);
-    return () => window.clearTimeout(timer);
-  }, [copyState]);
-
-  const copy = async (): Promise<void> => {
-    setCopyState(await copyText(invite));
-  };
-
-  const selectInvite = (): void => {
-    link.current?.focus();
-    link.current?.select();
-    link.current?.setSelectionRange(0, invite.length);
-  };
-
-  const copyLine = copyState === 'copied'
-    ? 'Invite link copied.'
-    : copyState === 'manual'
-      ? 'Clipboard blocked. Select the invite link below and copy it by hand.'
-      : copyState === 'failed'
-        ? 'Could not copy. The invite link above is selectable.'
-        : null;
 
   return (
     <main className="lobby-screen">
@@ -97,14 +66,10 @@ export function LobbyScreen({
           <p className="lobby-sub lobby-map-line">{describeMap(lobby.config.map)}</p>
         </div>
         <div className="lobby-head-actions">
-          {peerActive ? null : <Button variant="secondary" onClick={copy} title={invite}>
-            {copyState === 'copied' ? 'Invite copied' : copyState === 'manual' || copyState === 'failed' ? 'Copy failed, select it' : 'Copy invite link'}
-          </Button>}
           <Button variant="ghost" onClick={onRules}>Rules</Button>
           <Button variant="ghost" onClick={onLeave}>Leave</Button>
         </div>
       </header>
-      {copyLine ? <p className={`copy-note is-${copyState}`} role="status">{copyLine}</p> : null}
 
       <div className="lobby-grid">
         <section className="parchment lobby-seats" aria-label="Seats">
@@ -171,7 +136,7 @@ export function LobbyScreen({
             {isHost ? (
               <span className="host-note" title="The host does not ready up. Guests do.">Host · you start the game</span>
             ) : (
-              <Button variant={me?.ready ? 'secondary' : 'primary'} onClick={() => onReady(!me?.ready)} disabled={!connected} reason={!connected ? 'Reconnecting to the server.' : null}>
+              <Button variant={me?.ready ? 'secondary' : 'primary'} onClick={() => onReady(!me?.ready)} disabled={!connected} reason={!connected ? 'Connection lost.' : null}>
                 {me?.ready ? 'Not ready' : 'Ready'}
               </Button>
             )}
@@ -181,7 +146,7 @@ export function LobbyScreen({
                 onClick={onStart}
                 disabled={!connected || lobby.players.length < 2 || !allGuestsReady}
                 reason={!connected
-                  ? 'Reconnecting to the server.'
+                  ? 'Connection lost.'
                   : lobby.players.length < 2
                     ? 'Seat at least two players.'
                     : !allGuestsReady
@@ -199,19 +164,7 @@ export function LobbyScreen({
           {peerHosting ? (
             <PeerInvitePanel />
           ) : (
-            <label className="invite-field">
-              <span>Invite link</span>
-              <input
-                ref={link}
-                readOnly
-                value={invite}
-                className="invite-link"
-                onFocus={(event) => event.target.select()}
-                onPointerUp={selectInvite}
-                aria-describedby="invite-hint"
-              />
-              <span id="invite-hint" className="invite-hint">Open the link on any device on the same network. It resumes your seat here.</span>
-            </label>
+            <p className="invite-hint">The host shares the four-letter code. Ask them for it if you need it again.</p>
           )}
         </section>
 

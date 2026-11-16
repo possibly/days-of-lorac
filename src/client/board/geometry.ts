@@ -1,5 +1,5 @@
 /**
- * Board geometry, derived only from the `Board` the server sends.
+ * Board geometry, derived only from the `Board` the room sends.
  *
  * The one board-wide value is `S`, the median distance from a hex centre to one
  * of its vertices. Everything else in the renderer is a multiple of it. The

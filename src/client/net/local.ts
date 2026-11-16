@@ -6,9 +6,9 @@
  * shared engine runs in the browser, and the bots that `src/server/room-manager`
  * would have paced over a socket are paced here with `setTimeout`.
  *
- * This is what the GitHub Pages build uses. The bot policy is pure TypeScript
- * with no Node imports, so it ships in the client bundle. Online play keeps
- * using `socket.ts` and never touches this file.
+ * This is the default store. Peer tables swap in `socket.ts` for the duration of
+ * the table and swap back here on leave. The bot policy is pure TypeScript with
+ * no Node imports, so it ships in the client bundle.
  */
 import { applyAction, createGame, viewFor } from '@shared/engine';
 import { GAME_VERSION } from '@shared/version';
@@ -48,7 +48,6 @@ function initialSnapshot(): ClientSnapshot {
     ready: true,
     roomCode: null,
     you: null,
-    token: null,
     hostSeat: null,
     pilotSeats: [],
     lobby: null,
@@ -56,11 +55,6 @@ function initialSnapshot(): ClientSnapshot {
     error: null,
     chats: [],
     roomClosed: null,
-    attempt: 0,
-    droppedAt: null,
-    botPilot: false,
-    latency: null,
-    resuming: false,
   };
 }
 
@@ -140,10 +134,6 @@ export class LocalClient {
     this.update(initialSnapshot());
   }
 
-  forget(): void {
-    this.leaveRoom();
-  }
-
   clearError(): void {
     if (this.snapshot.error) this.update({ error: null });
   }
@@ -152,18 +142,8 @@ export class LocalClient {
     if (this.snapshot.roomClosed) this.update({ roomClosed: null });
   }
 
-  // Online-only intents. The offline UI never shows their controls; these exist
-  // so the screens type-check against one store interface.
-  createRoom(): void {}
-
-  joinRoom(): void {}
-
-  resumeSession(): void {}
-
-  resumeStored(): boolean {
-    return false;
-  }
-
+  // Room-only intents. The bot game never shows their controls; these exist so
+  // the screens type-check against one store interface.
   setReady(): void {}
 
   setMapSettings(): void {}
@@ -214,7 +194,6 @@ export class LocalClient {
       link: 'open',
       ready: true,
       serverVersion: GAME_VERSION,
-      resuming: false,
     });
   }
 
@@ -247,7 +226,7 @@ export class LocalClient {
   }
 
   /**
-   * Mirrors the server's rule: mandatory discards first, then bot answers to an
+   * Mirrors the room manager's rule: mandatory discards first, then bot answers to an
    * open trade, then the current seat if a bot holds it. A human's owed discard
    * or trade answer leaves this null, which stops the timer until they act.
    */
@@ -299,7 +278,7 @@ export class LocalClient {
 
 /**
  * Last-resort legal move if the bot policy ever returns something the engine
- * rejects. Mirrors the server's fallback in spirit, not in code, so this file
+ * rejects. Mirrors the room manager's fallback in spirit, not in code, so this file
  * stays independent of the room manager.
  */
 function emergencyAction(view: GameView): GameAction | null {

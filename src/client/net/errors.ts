@@ -1,6 +1,6 @@
 /**
  * Wire error -> human sentence. One line per code, as listed in the UI spec.
- * Errors the server sends are the only source of rejection text; the client
+ * Errors the room sends are the only source of rejection text; the client
  * never guesses why an action failed.
  */
 
@@ -18,14 +18,14 @@ const LINES: Record<string, string> = {
   TRADE_STALE: 'That trade is no longer possible. Nothing was exchanged.',
   CHOICE_REQUIRED: 'Pick a target for this card first.',
   RATE_LIMITED: 'Slow down a moment.',
-  ROOM_NOT_FOUND: 'No room with that code.',
-  ROOM_FULL: 'That room is full. Ask the host for a seat or start your own.',
-  SERVER_ERROR: 'The server had a problem. Try that again.',
+  ROOM_NOT_FOUND: 'No table with that code.',
+  ROOM_FULL: 'That table is full. Ask the host for a seat.',
+  SERVER_ERROR: 'The table had a problem. Try that again.',
   ALREADY_STARTED: 'That game has already started.',
-  BAD_MESSAGE: 'The server could not read that. Try again.',
+  BAD_MESSAGE: 'That message could not be read. Try again.',
   NAME_REQUIRED: 'Pick a name first.',
   NOT_HOST: 'Only the host can do that.',
-  NOT_IN_ROOM: 'You are not in that room any more.',
+  NOT_IN_ROOM: 'You are not in that table any more.',
   INVALID_ROOM: 'That room code cannot be used.',
   TOO_MANY_PLAYERS: 'That room is full.',
   NOT_ENOUGH_PLAYERS: 'Seat at least two players to start.',
@@ -44,7 +44,7 @@ const LINES: Record<string, string> = {
   INVALID_TRADE: 'That offer is not valid.',
   SETUP_COMPLETE: 'Setup is already finished.',
   SEAT_INVALID: 'That seat no longer exists.',
-  INTERNAL: 'The server had a problem. Try that again.',
+  INTERNAL: 'The table had a problem. Try that again.',
 };
 
 export function errorLine(code: string, fallback?: string): string {
