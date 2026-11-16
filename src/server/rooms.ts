@@ -10,7 +10,6 @@
  * Nothing here knows about sockets beyond `ClientConnection`, which lets the
  * tests drive the manager with fake connections and a fake clock.
  */
-import { randomUUID } from 'node:crypto';
 import { targetVpFor } from '@shared/constants';
 import type { BotDifficulty, GameState, Seat } from '@shared/types';
 import type {
@@ -168,8 +167,24 @@ export function randomCode(random: () => number = Math.random): string {
   return code;
 }
 
+/**
+ * Random hex id. `crypto.randomUUID` is secure-context only, so a page served
+ * over plain HTTP on a LAN (peer hosting, `npm start` from another device)
+ * falls back to `getRandomValues`, which works everywhere.
+ */
+export function randomId(): string {
+  const webCrypto = (globalThis as { crypto?: Crypto }).crypto;
+  if (webCrypto?.randomUUID) return webCrypto.randomUUID();
+  const bytes = new Uint8Array(16);
+  if (webCrypto?.getRandomValues) webCrypto.getRandomValues(bytes);
+  else for (let index = 0; index < bytes.length; index += 1) bytes[index] = Math.floor(Math.random() * 256);
+  let out = '';
+  for (const byte of bytes) out += byte.toString(16).padStart(2, '0');
+  return out;
+}
+
 export function newReconnectToken(): string {
-  return randomUUID().replace(/-/g, '');
+  return randomId().replace(/-/g, '');
 }
 
 export function botName(seat: Seat): string {

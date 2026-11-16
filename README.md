@@ -13,6 +13,14 @@ shared engine.
 - **Online (own server):** `npm start`, then open `http://localhost:8096`.
   Create a room, share the four-letter code or `?room=CODE` link, add bots to
   open seats. Refresh resumes your seat.
+- **Peer table (no server at all):** in the Pages build, choose "Host a table".
+  Phones scan the invite QR or open the shared link and reply with a code the
+  host scans or pastes. The host's tab runs the room, bots included. See
+  [docs/PEER.md](docs/PEER.md).
+
+Peer tables are the only mode that works on a static host with no service
+behind it. The trade is that the host's tab has to stay open and awake for the
+whole game, and a refresh ends the table.
 
 Victory target is 14 points with four players, 16 with three, 18 with two.
 Settlements score 1, cities 2, each award 2, charters 1 or 2. One market
@@ -62,6 +70,7 @@ src/shared/engine board, setup, actions, cards, awards, legal moves, views
 src/server/       HTTP, rooms, reconnect, bot runner
 src/server/bots/  bot policy and balance simulator
 src/client/       React app, SVG board, hand, market, trade, modals
+src/client/net/peer/  WebRTC peer tables: codec, signaling, host, guest, session
 docs/             rules, card manifest, UI spec, contracts
 ```
 

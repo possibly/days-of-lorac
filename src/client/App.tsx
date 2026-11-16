@@ -23,6 +23,8 @@ import { SoloSetupScreen } from './screens/SoloSetupScreen';
 import { CreateRoomScreen } from './screens/CreateRoomScreen';
 import { JoinScreen } from './screens/JoinScreen';
 import { LobbyScreen } from './screens/LobbyScreen';
+import { PeerHostScreen } from './screens/PeerHostScreen';
+import { PeerJoinScreen } from './screens/PeerJoinScreen';
 import { GameScreen } from './screens/GameScreen';
 import { RulesSheet } from './modals/RulesSheet';
 import { RoomClosedModal, VersionMismatchModal } from './modals/RoomClosedModal';
@@ -32,13 +34,17 @@ import { Button } from './ui/Button';
 import { setSoundEnabled, playCue } from './sound/audio';
 import type { FixtureMode, FixtureSession } from './dev/fixture';
 import { installDiagnostics } from './dev/diagnose';
+import { peer } from './net/peer/session';
+import { usePeer } from './net/peer/usePeer';
+import type { HostRoomConfig } from './net/peer/session';
 
-type Screen = 'title' | 'solo' | 'create' | 'join' | 'connecting' | 'resume' | 'lobby' | 'game';
+type Screen = 'title' | 'solo' | 'create' | 'join' | 'peer-host' | 'peer-join' | 'connecting' | 'resume' | 'lobby' | 'game';
 
 const isDev = Boolean((import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV);
 
 export default function App(): JSX.Element {
   const snapshot = useGame();
+  const peerState = usePeer();
   const params = new URLSearchParams(typeof window === 'undefined' ? '' : window.location.search);
   const fixtureParam = params.get('fixture');
   const fixtureMode = isDev && fixtureParam !== null;
@@ -68,6 +74,7 @@ export default function App(): JSX.Element {
 
   const toastId = useRef(1);
   const booted = useRef(false);
+  const peerBooted = useRef(false);
   const previousLink = useRef<LinkState>('idle');
   const hostSeat = useRef<Seat | null>(null);
   const lastCode = useRef<string | null>(null);
@@ -100,6 +107,33 @@ export default function App(): JSX.Element {
   useEffect(() => {
     setLastSession(loadResumable());
   }, []);
+
+  // #join=... is a direct peer invite. Nothing on a server knows about it.
+  useEffect(() => {
+    if (peerBooted.current || fixtureMode) return;
+    peerBooted.current = true;
+    if (!window.location.hash.includes('join=')) return;
+    void peer.loadInviteFromUrl().then((ok) => {
+      if (ok) setScreen('peer-join');
+    });
+  }, [fixtureMode]);
+
+  // Peer phases own their screens until the room protocol takes over.
+  useEffect(() => {
+    if (peerState.phase === 'host-starting') {
+      setBusyLabel('Opening the table…');
+      setScreen('connecting');
+      return;
+    }
+    if (peerState.phase === 'guest-preview' || peerState.phase === 'guest-answering' || peerState.phase === 'guest-waiting') {
+      setScreen('peer-join');
+      return;
+    }
+    if (peerState.phase === 'error') {
+      if (peerState.error) pushToast(peerState.error, 'error');
+      setScreen('title');
+    }
+  }, [peerState.phase, peerState.error, pushToast]);
 
   // ?diag=1 pins an on-device measurement panel over the game. Inert otherwise.
   useEffect(() => {
@@ -235,7 +269,9 @@ export default function App(): JSX.Element {
       setFixtureView(null);
       return;
     }
-    if (OFFLINE_MODE || snapshot.roomCode) client.leaveRoom();
+    // A peer table lives behind its own teardown, not just a leaveRoom message.
+    if (peer.active) peer.leave();
+    else if (OFFLINE_MODE || snapshot.roomCode) client.leaveRoom();
     setRoomParam(null);
     setJoinNotice(null);
     setJoinLocked(false);
@@ -319,6 +355,25 @@ export default function App(): JSX.Element {
     body = <SoloSetupScreen initialName={name} onStart={startSolo} onBack={() => setScreen('title')} onRules={() => setRulesOpen(true)} />;
   } else if (screen === 'create') {
     body = <CreateRoomScreen initialName={name} onStart={startCreate} onBack={() => setScreen('title')} onRules={() => setRulesOpen(true)} />;
+  } else if (screen === 'peer-host') {
+    body = (
+      <PeerHostScreen
+        initialName={name}
+        onStart={startPeerHost}
+        onBack={() => setScreen('title')}
+        onRules={() => setRulesOpen(true)}
+      />
+    );
+  } else if (screen === 'peer-join') {
+    body = (
+      <PeerJoinScreen
+        state={peerState}
+        initialName={name}
+        onJoin={joinPeer}
+        onBack={leavePeer}
+        onRules={() => setRulesOpen(true)}
+      />
+    );
   } else if (screen === 'join') {
     body = (
       <JoinScreen
@@ -339,7 +394,11 @@ export default function App(): JSX.Element {
           <p className="eyebrow">{screen === 'resume' ? 'Reconnect' : 'Opening the table'}</p>
           <h1 className="panel-title">{busyLabel}</h1>
           <p className="setup-note">
-            {snapshot.link === 'open' ? 'Waiting on the server.' : 'Connecting to the server. The buttons return if it stays down.'}
+            {peerState.phase === 'host-starting'
+              ? 'This browser is the table. Nothing is uploaded.'
+              : snapshot.link === 'open'
+                ? 'Waiting on the server.'
+                : 'Connecting to the server. The buttons return if it stays down.'}
           </p>
           <span className={`spinner${snapshot.link === 'open' ? ' is-fast' : ''}`} aria-hidden="true" />
           <div className="setup-actions">
@@ -356,6 +415,9 @@ export default function App(): JSX.Element {
         onSolo={() => setScreen('solo')}
         onCreate={() => setScreen('create')}
         onJoin={() => { setJoinCode(''); setJoinLocked(false); setJoinNotice(null); setScreen('join'); }}
+        showPeer={OFFLINE_MODE || isDev}
+        onPeerHost={() => setScreen('peer-host')}
+        onPeerJoin={() => { setJoinCode(''); setJoinLocked(false); setJoinNotice(null); setScreen('peer-join'); }}
         onResume={resume}
         onForget={forget}
         onRules={() => setRulesOpen(true)}
@@ -460,6 +522,25 @@ export default function App(): JSX.Element {
     forgetSession();
     setLastSession(null);
     pushToast('Session forgotten.');
+  }
+
+  function startPeerHost(config: HostRoomConfig): void {
+    setName(config.name);
+    saveName(config.name);
+    setBusyLabel('Opening the table…');
+    setScreen('connecting');
+    void peer.hostTable(config);
+  }
+
+  function joinPeer(person: string): void {
+    setName(person);
+    saveName(person);
+    void peer.joinAsGuest(person);
+  }
+
+  function leavePeer(): void {
+    peer.leave();
+    goTitle();
   }
 }
 

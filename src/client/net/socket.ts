@@ -23,6 +23,8 @@ import type {
 import type { GameAction, GameView, MapSettings, Seat } from '@shared/types';
 import { GAME_VERSION } from '@shared/version';
 import { clearToken, loadToken, saveToken } from './storage';
+import { SOCKET_CONNECTING, SOCKET_OPEN } from './peer/socket-like';
+import type { SocketLike } from './peer/socket-like';
 
 const MAX_CHAT = 40;
 const BOT_PILOT_MS = 45_000;
@@ -92,10 +94,13 @@ const INITIAL: ClientSnapshot = {
 
 type Listener = () => void;
 
-class GameClient {
+export class GameClient {
   private snapshot: ClientSnapshot = INITIAL;
   private listeners = new Set<Listener>();
-  private socket: WebSocket | null = null;
+  private socket: SocketLike | null = null;
+  /** When set, `connect` asks this for a socket instead of opening /ws. */
+  private transport: (() => SocketLike) | null = null;
+  private autoReconnect = true;
   private retryTimer: number | undefined;
   private botTimer: number | undefined;
   private pingTimer: number | undefined;
@@ -131,10 +136,58 @@ class GameClient {
   /** Idempotent: safe to call from an effect that StrictMode runs twice. */
   start(): void {
     if (this.disposed) return;
-    if (this.socket && (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)) {
+    if (this.socket && (this.socket.readyState === SOCKET_OPEN || this.socket.readyState === SOCKET_CONNECTING)) {
       return;
     }
     this.connect();
+  }
+
+  /**
+   * Play over something that is not /ws: a data channel to the host, or the
+   * host's own loopback. Resets session state first, because the peer host is a
+   * different table with its own tokens. Peer links do not retry: there is no
+   * address to reconnect to, so a lost channel is reported as closed.
+   */
+  attachTransport(transport: () => SocketLike): void {
+    this.resetSession();
+    this.transport = transport;
+    this.autoReconnect = false;
+    this.disposed = false;
+    this.connect();
+  }
+
+  /** Back to the origin socket, with normal reconnect behaviour. */
+  detachTransport(): void {
+    this.transport = null;
+    this.autoReconnect = true;
+    this.resetSession();
+  }
+
+  private resetSession(): void {
+    if (this.retryTimer !== undefined) window.clearTimeout(this.retryTimer);
+    if (this.botTimer !== undefined) window.clearTimeout(this.botTimer);
+    if (this.pingTimer !== undefined) window.clearInterval(this.pingTimer);
+    this.retryTimer = undefined;
+    this.botTimer = undefined;
+    this.pingTimer = undefined;
+    if (this.socket) {
+      this.socket.onopen = null;
+      this.socket.onmessage = null;
+      this.socket.onclose = null;
+      this.socket.onerror = null;
+      try {
+        this.socket.close();
+      } catch {
+        // already closed
+      }
+    }
+    this.socket = null;
+    this.resume = null;
+    this.pendingAction = null;
+    this.gate = null;
+    this.outbox = [];
+    this.snapshot = { ...INITIAL };
+    for (const listener of this.listeners) listener();
   }
 
   stop(): void {
@@ -160,9 +213,11 @@ class GameClient {
       }
     }
     this.update({ link: 'connecting' });
-    let socket: WebSocket;
+    let socket: SocketLike;
     try {
-      socket = new WebSocket(wsUrl());
+      // WebSocket's handler signatures are wider than SocketLike's; the runtime
+      // shape is identical and `onmessage` only reads `event.data`.
+      socket = this.transport ? this.transport() : (new WebSocket(wsUrl()) as unknown as SocketLike);
     } catch {
       this.scheduleReconnect();
       return;
@@ -186,7 +241,7 @@ class GameClient {
       this.pingTimer = window.setInterval(() => this.send({ type: 'ping', t: Date.now() }), 25_000);
     };
 
-    socket.onmessage = (event: MessageEvent<string>) => {
+    socket.onmessage = (event: { data: string }) => {
       if (this.socket !== socket) return;
       let parsed: ServerMessage;
       try {
@@ -223,7 +278,7 @@ class GameClient {
   }
 
   private scheduleReconnect(): void {
-    if (this.disposed) return;
+    if (this.disposed || !this.autoReconnect) return;
     if (this.retryTimer !== undefined) window.clearTimeout(this.retryTimer);
     const step = Math.min(this.snapshot.attempt, BACKOFF.length - 1);
     const base = BACKOFF[step] ?? 10000;
@@ -235,7 +290,7 @@ class GameClient {
 
   private transmit(message: ClientMessage): boolean {
     const socket = this.socket;
-    if (!socket || socket.readyState !== WebSocket.OPEN || !this.snapshot.ready) return false;
+    if (!socket || socket.readyState !== SOCKET_OPEN || !this.snapshot.ready) return false;
     try {
       socket.send(JSON.stringify(message));
       return true;
@@ -541,3 +596,4 @@ if ((import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV && typeof w
   (window as unknown as { __lorac?: GameClient }).__lorac = onlineClient;
 }
 export { wsUrl };
+export type { SocketLike };

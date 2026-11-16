@@ -10,6 +10,10 @@ interface TitleScreenProps {
   onSolo: () => void;
   onCreate: () => void;
   onJoin: () => void;
+  /** Peer tables need neither a server nor a build flag; shown where useful. */
+  showPeer: boolean;
+  onPeerHost: () => void;
+  onPeerJoin: () => void;
   onResume: (code: string) => void;
   onForget: () => void;
   onRules: () => void;
@@ -27,6 +31,9 @@ export function TitleScreen({
   onSolo,
   onCreate,
   onJoin,
+  showPeer,
+  onPeerHost,
+  onPeerJoin,
   onResume,
   onForget,
   onRules,
@@ -65,6 +72,12 @@ export function TitleScreen({
               <Button variant="secondary" className="btn-lg" onClick={onJoin}>Join with code</Button>
             </>
           )}
+          {showPeer ? (
+            <>
+              <Button variant="secondary" className="btn-lg" onClick={onPeerHost}>Host a table</Button>
+              <Button variant="secondary" className="btn-lg" onClick={onPeerJoin}>Join a table</Button>
+            </>
+          ) : null}
         </div>
 
         <button type="button" className="text-link" onClick={onRules}>Rules</button>

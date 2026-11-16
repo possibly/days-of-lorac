@@ -8,6 +8,8 @@ import { MapSettingsForm } from '../ui/MapSettingsForm';
 import { SeatCoin } from '../ui/SeatCoin';
 import { copyText } from '../ui/clipboard';
 import type { CopyResult } from '../ui/clipboard';
+import { PeerInvitePanel } from './PeerInvitePanel';
+import { usePeer } from '../net/peer/usePeer';
 
 interface LobbyScreenProps {
   lobby: LobbyView;
@@ -45,6 +47,10 @@ export function LobbyScreen({
   const [mapDraft, setMapDraft] = useState<MapSettings>(lobby.config.map);
   const link = useRef<HTMLInputElement>(null);
   const me = lobby.players.find((player) => player.seat === you);
+  // A peer table has no address to share: the invite lives in this tab.
+  const peerState = usePeer();
+  const peerHosting = peerState.role === 'host';
+  const peerActive = peerState.role !== 'idle';
   const isHost = lobby.hostSeat === you;
   const openSeats = Math.max(0, lobby.config.maxPlayers - lobby.players.length);
   // The host's ready flag is implicit: the host opens the table, so only the
@@ -91,9 +97,9 @@ export function LobbyScreen({
           <p className="lobby-sub lobby-map-line">{describeMap(lobby.config.map)}</p>
         </div>
         <div className="lobby-head-actions">
-          <Button variant="secondary" onClick={copy} title={invite}>
+          {peerActive ? null : <Button variant="secondary" onClick={copy} title={invite}>
             {copyState === 'copied' ? 'Invite copied' : copyState === 'manual' || copyState === 'failed' ? 'Copy failed, select it' : 'Copy invite link'}
-          </Button>
+          </Button>}
           <Button variant="ghost" onClick={onRules}>Rules</Button>
           <Button variant="ghost" onClick={onLeave}>Leave</Button>
         </div>
@@ -190,19 +196,23 @@ export function LobbyScreen({
             {openSeats > 0 ? <span className="lobby-open">{openSeats} seat{openSeats === 1 ? '' : 's'} open</span> : null}
           </div>
 
-          <label className="invite-field">
-            <span>Invite link</span>
-            <input
-              ref={link}
-              readOnly
-              value={invite}
-              className="invite-link"
-              onFocus={(event) => event.target.select()}
-              onPointerUp={selectInvite}
-              aria-describedby="invite-hint"
-            />
-            <span id="invite-hint" className="invite-hint">Open the link on any device on the same network. It resumes your seat here.</span>
-          </label>
+          {peerHosting ? (
+            <PeerInvitePanel />
+          ) : (
+            <label className="invite-field">
+              <span>Invite link</span>
+              <input
+                ref={link}
+                readOnly
+                value={invite}
+                className="invite-link"
+                onFocus={(event) => event.target.select()}
+                onPointerUp={selectInvite}
+                aria-describedby="invite-hint"
+              />
+              <span id="invite-hint" className="invite-hint">Open the link on any device on the same network. It resumes your seat here.</span>
+            </label>
+          )}
         </section>
 
         <aside className="parchment lobby-chat" aria-label="Table talk">

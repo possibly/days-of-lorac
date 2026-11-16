@@ -10,7 +10,6 @@
  * Sockets are `ClientConnection` objects and time comes from a `Clock`, so the
  * unit tests run the whole thing without a network and without waiting.
  */
-import { randomUUID } from 'node:crypto';
 import { RESOURCES } from '@shared/types';
 import type {
   ActionResult,
@@ -50,6 +49,7 @@ import {
   randomCode,
   sanitizeChat,
   sanitizeName,
+  randomId,
   systemClock,
 } from './rooms.js';
 import type { ClientConnection, Clock, Room, RoomStats, SeatSlot } from './rooms.js';
@@ -69,6 +69,8 @@ export interface RoomManagerOptions {
   code?: () => string;
   /** Console sink; tests pass a no-op. */
   log?: (line: string) => void;
+  /** Verbose scheduler tracing. The server wires this to LORAC_DEBUG. */
+  debug?: boolean;
 }
 
 interface Session {
@@ -95,6 +97,7 @@ export class RoomManager {
   private readonly seedFn: (() => number) | null;
   private readonly codeFn: (() => string) | null;
   private readonly log: (line: string) => void;
+  private readonly debugEnabled: boolean;
   private seedCounter = 0;
 
   constructor(options: RoomManagerOptions = {}) {
@@ -110,6 +113,7 @@ export class RoomManager {
     this.seedFn = options.seed ?? null;
     this.codeFn = options.code ?? null;
     this.log = options.log ?? ((line) => console.log(line));
+    this.debugEnabled = options.debug ?? false;
   }
 
   // -------------------------------------------------------------------------
@@ -957,7 +961,7 @@ export class RoomManager {
       seed: this.nextSeed(),
       // Random, so the public id says nothing about the seed. Bot tie-breaks
       // still work: they hash the id, they do not invert it.
-      gameId: randomUUID(),
+      gameId: randomId(),
       names: slots.map((slot) => slot.name),
       bots: slots.map((slot) => slot.isBot),
       difficulties: slots.map((slot) =>
@@ -1201,6 +1205,6 @@ export class RoomManager {
 
   /** Extra scheduler tracing; enable with LORAC_DEBUG=1. */
   private debug(room: Room, line: string): void {
-    if (process.env.LORAC_DEBUG) this.log(`[room ${room.code}] ${line}`);
+    if (this.debugEnabled) this.log(`[room ${room.code}] ${line}`);
   }
 }

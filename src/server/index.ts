@@ -46,7 +46,10 @@ export interface RunningServer {
 
 export async function startServer(options: StartServerOptions = {}): Promise<RunningServer> {
   const startedAt = Date.now();
-  const manager = new RoomManager(options.managerOptions);
+  const manager = new RoomManager({
+    debug: Boolean(process.env.LORAC_DEBUG),
+    ...options.managerOptions,
+  });
   let gameSocket: GameSocketServer | null = null;
 
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
