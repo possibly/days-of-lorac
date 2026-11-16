@@ -1,6 +1,7 @@
 import type {
   ActionErrorCode,
   BotDifficulty,
+  CardSettings,
   GameAction,
   GameView,
   MapSettings,
@@ -16,6 +17,8 @@ export interface RoomConfig {
   difficulty: BotDifficulty;
   /** Host-chosen island size and placement. Editable until the game starts. */
   map: MapSettings;
+  /** Host-chosen card pool and pricing. Editable until the game starts. */
+  cards: CardSettings;
 }
 
 export interface LobbyPlayer {
@@ -69,6 +72,7 @@ export type ClientMessage =
       seats: 2 | 3 | 4;
       difficulty: BotDifficulty;
       map?: MapSettings;
+      cards?: CardSettings;
     }
   | {
       type: 'createRoom';
@@ -76,12 +80,14 @@ export type ClientMessage =
       maxPlayers: 2 | 3 | 4;
       difficulty: BotDifficulty;
       map?: MapSettings;
+      cards?: CardSettings;
     }
   | { type: 'joinRoom'; code: string; name: string }
   | { type: 'resume'; code: string; token: string }
   | { type: 'leaveRoom' }
   | { type: 'setReady'; ready: boolean }
   | { type: 'setMapSettings'; map: MapSettings }
+  | { type: 'setCardSettings'; cards: CardSettings }
   | { type: 'addBot'; difficulty?: BotDifficulty }
   | { type: 'removePlayer'; seat: Seat }
   | { type: 'startGame' }

@@ -13,8 +13,10 @@
  */
 import { applyAction, createGame, viewFor } from '../../shared/engine/index.js';
 import { RESOURCES } from '../../shared/types.js';
+import { DEFAULT_CARD_SETTINGS } from '../../shared/card-settings.js';
 import type {
   BotDifficulty,
+  CardSettings,
   GameAction,
   GameState,
   ResourceMap,
@@ -34,6 +36,8 @@ export interface SimOptions {
   seed: number;
   /** Hard cap on accepted actions in one game before it is called a stall. */
   maxActions: number;
+  /** Card pool and pricing. Defaults to the standard printed market. */
+  cards: CardSettings;
   /**
    * Extra head-to-head matchups: seat 0 gets the first difficulty, everyone
    * else the second. The odd seat rotates every game so positional bias
@@ -204,6 +208,7 @@ export function runGame(
   maxActions: number,
   label?: string,
   oddSeat: Seat | null = null,
+  cards: CardSettings = DEFAULT_CARD_SETTINGS,
 ): SimGameResult {
   const seats = Array.from({ length: playerCount }, (_, index) => index);
   const difficultyFor = (seat: Seat): BotDifficulty =>
@@ -211,6 +216,7 @@ export function runGame(
   const initial = createGame({
     playerCount,
     seed,
+    cards,
     bots: seats.map(() => true),
     difficulties: seats.map((seat) => difficultyFor(seat)),
     names: seats.map((seat) => `Bot ${seat + 1} (${difficultyFor(seat)})`),
@@ -422,6 +428,7 @@ export function runBalance(options: Partial<SimOptions> = {}): SimReport {
     difficulties: options.difficulties ?? ['normal'],
     seed: options.seed ?? 1,
     maxActions: options.maxActions ?? 5000,
+    cards: options.cards ?? DEFAULT_CARD_SETTINGS,
     mixed:
       options.mixed ?? [
         { label: 'easy-vs-normal', odd: 'easy', rest: 'normal' },
@@ -442,6 +449,9 @@ export function runBalance(options: Partial<SimOptions> = {}): SimReport {
           seed,
           Array.from({ length: playerCount }, () => difficulty),
           resolved.maxActions,
+          undefined,
+          null,
+          resolved.cards,
         );
         games.push(game);
         results.push(game);
@@ -461,7 +471,15 @@ export function runBalance(options: Partial<SimOptions> = {}): SimReport {
         for (let seat = 0; seat < playerCount; seat += 1) {
           perSeat.push(seat === oddSeat ? matchup.odd : matchup.rest);
         }
-        const game = runGame(playerCount, seed, perSeat, resolved.maxActions, matchup.label, oddSeat);
+        const game = runGame(
+          playerCount,
+          seed,
+          perSeat,
+          resolved.maxActions,
+          matchup.label,
+          oddSeat,
+          resolved.cards,
+        );
         games.push(game);
         results.push(game);
       }

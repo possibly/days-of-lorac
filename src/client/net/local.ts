@@ -14,8 +14,10 @@ import { applyAction, createGame, viewFor } from '@shared/engine';
 import { GAME_VERSION } from '@shared/version';
 import { RESOURCES } from '@shared/types';
 import { DEFAULT_MAP_SETTINGS } from '@shared/map-settings';
+import { DEFAULT_CARD_SETTINGS } from '@shared/card-settings';
 import type {
   BotDifficulty,
+  CardSettings,
   GameAction,
   GameState,
   GameView,
@@ -65,6 +67,7 @@ export class LocalClient {
   private seats: 2 | 3 | 4 = 4;
   private difficulty: BotDifficulty = 'normal';
   private map: MapSettings = DEFAULT_MAP_SETTINGS;
+  private cards: CardSettings = DEFAULT_CARD_SETTINGS;
   private humanName = 'You';
   private timer: number | undefined;
   private botFailures = 0;
@@ -98,11 +101,18 @@ export class LocalClient {
 
   // ----- intents -----------------------------------------------------------
 
-  quickPlay(name: string, seats: 2 | 3 | 4, difficulty: BotDifficulty, map: MapSettings = DEFAULT_MAP_SETTINGS): void {
+  quickPlay(
+    name: string,
+    seats: 2 | 3 | 4,
+    difficulty: BotDifficulty,
+    map: MapSettings = DEFAULT_MAP_SETTINGS,
+    cards: CardSettings = DEFAULT_CARD_SETTINGS,
+  ): void {
     this.humanName = name.trim() || 'You';
     this.seats = seats;
     this.difficulty = difficulty;
     this.map = { ...map };
+    this.cards = { ...cards };
     this.newGame();
   }
 
@@ -148,6 +158,8 @@ export class LocalClient {
 
   setMapSettings(): void {}
 
+  setCardSettings(): void {}
+
   addBot(): void {}
 
   removePlayer(): void {}
@@ -170,6 +182,7 @@ export class LocalClient {
     this.state = createGame({
       playerCount: this.seats,
       map: this.map,
+      cards: this.cards,
       seed: randomSeed(),
       gameId: randomId(),
       names,

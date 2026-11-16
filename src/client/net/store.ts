@@ -7,7 +7,7 @@
  * subscribe function, while `activate` swaps the store underneath and notifies
  * once.
  */
-import type { BotDifficulty, GameAction, MapSettings, Seat } from '@shared/types';
+import type { BotDifficulty, CardSettings, GameAction, MapSettings, Seat } from '@shared/types';
 import type { ClientSnapshot } from './socket';
 import { onlineClient } from './socket';
 import { LocalClient } from './local';
@@ -18,11 +18,18 @@ export interface GameStore {
   start(): void;
   stop?(): void;
 
-  quickPlay(name: string, seats: 2 | 3 | 4, difficulty: BotDifficulty, map: MapSettings): void;
+  quickPlay(
+    name: string,
+    seats: 2 | 3 | 4,
+    difficulty: BotDifficulty,
+    map: MapSettings,
+    cards: CardSettings,
+  ): void;
   leaveRoom(): void;
 
   setReady(ready: boolean): void;
   setMapSettings(map: MapSettings): void;
+  setCardSettings(cards: CardSettings): void;
   addBot(difficulty: BotDifficulty): void;
   removePlayer(seat: Seat): void;
   startGame(): void;
@@ -77,6 +84,7 @@ class StoreFront implements GameStore {
   leaveRoom = (): void => this.active.leaveRoom();
   setReady = (ready: boolean): void => this.active.setReady(ready);
   setMapSettings = (map: MapSettings): void => this.active.setMapSettings(map);
+  setCardSettings = (cards: CardSettings): void => this.active.setCardSettings(cards);
   addBot = (difficulty: BotDifficulty): void => this.active.addBot(difficulty);
   removePlayer = (seat: Seat): void => this.active.removePlayer(seat);
   startGame = (): void => this.active.startGame();

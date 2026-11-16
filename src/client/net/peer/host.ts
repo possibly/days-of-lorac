@@ -11,7 +11,7 @@
  */
 import { GAME_VERSION } from '@shared/version';
 import type { ServerMessage } from '@shared/protocol';
-import type { BotDifficulty, MapSettings } from '@shared/types';
+import type { BotDifficulty, CardSettings, MapSettings } from '@shared/types';
 import { RoomManager } from '../../../server/room-manager.js';
 import { routeClientMessage, sendError, SocketRateLimiter } from '../../../server/message-router.js';
 import { systemClock } from '../../../server/rooms.js';
@@ -140,4 +140,5 @@ export interface HostRoomConfig {
   maxPlayers: 2 | 3 | 4;
   difficulty: BotDifficulty;
   map: MapSettings;
+  cards: CardSettings;
 }

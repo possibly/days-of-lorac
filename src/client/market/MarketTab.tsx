@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { CardDef, GameView, Resource } from '@shared/types';
+import type { CardDef, GameView, PartialResources, Resource } from '@shared/types';
 import { MARKET_CARDS, CHARTER_CARDS, cardMovesRobber } from '@shared/cards';
 import { RESOURCES } from '@shared/types';
 import { ResourceIcon } from '../ui/icons';
@@ -55,10 +55,11 @@ export function MarketTab({ view, purchaseUsed, onBuy, letters }: MarketTabProps
       <MyResources view={view} letters={letters} />
 
       <section className="charter-row" aria-label="Charter stacks">
-        {CHARTER_CARDS.map((def) => (
+        {inMarket(view, CHARTER_CARDS).map((def) => (
           <MarketRow
             key={def.id}
             def={def}
+            cost={view.cardCosts[def.id] ?? def.cost}
             view={view}
             stock={view.market[def.id] ?? 0}
             buyable={buyable.has(def.id)}
@@ -85,10 +86,11 @@ export function MarketTab({ view, purchaseUsed, onBuy, letters }: MarketTabProps
       ) : null}
 
       <div className="pile-list">
-        {MARKET_CARDS.map((def) => (
+        {inMarket(view, MARKET_CARDS).map((def) => (
           <MarketRow
             key={def.id}
             def={def}
+            cost={view.cardCosts[def.id] ?? def.cost}
             view={view}
             stock={view.market[def.id] ?? 0}
             buyable={buyable.has(def.id)}
@@ -112,6 +114,11 @@ export function MarketTab({ view, purchaseUsed, onBuy, letters }: MarketTabProps
   );
 }
 
+/** Only the cards this game stocks, in printed order. */
+function inMarket(view: GameView, defs: readonly CardDef[]): CardDef[] {
+  return defs.filter((def) => view.market[def.id] !== undefined);
+}
+
 function missingText(cost: Record<string, number | undefined>, resources: Record<Resource, number>): string {
   const parts: string[] = [];
   for (const resource of RESOURCES) {
@@ -123,15 +130,16 @@ function missingText(cost: Record<string, number | undefined>, resources: Record
   return `Need ${parts.join(' and ')}.`;
 }
 
-function costLabel(def: CardDef): string {
-  if (!def.cost) return 'no cost';
-  return RESOURCES.filter((resource) => (def.cost?.[resource] ?? 0) > 0)
-    .map((resource) => `${def.cost?.[resource] ?? 0} ${RESOURCE_WORD[resource]}`)
+function costLabel(cost: PartialResources | null): string {
+  if (!cost) return 'no cost';
+  return RESOURCES.filter((resource) => (cost[resource] ?? 0) > 0)
+    .map((resource) => `${cost[resource] ?? 0} ${RESOURCE_WORD[resource]}`)
     .join(', ');
 }
 
 function MarketRow({
   def,
+  cost,
   view,
   stock,
   buyable,
@@ -148,6 +156,8 @@ function MarketRow({
   resources,
 }: {
   def: CardDef;
+  /** This game's price, which a shuffled market may move off the printed one. */
+  cost: PartialResources | null;
   view: GameView;
   stock: number;
   buyable: boolean;
@@ -165,8 +175,8 @@ function MarketRow({
   resources: Record<Resource, number>;
 }): JSX.Element {
   const soldOut = stock <= 0;
-  const costs = def.cost ? RESOURCES.filter((resource) => (def.cost?.[resource] ?? 0) > 0) : [];
-  const missing = def.cost ? missingText(def.cost, resources) : '';
+  const costs = cost ? RESOURCES.filter((resource) => (cost[resource] ?? 0) > 0) : [];
+  const missing = cost ? missingText(cost, resources) : '';
   let reason: string | null = null;
   if (soldOut) reason = 'Sold out. Empty piles stay empty.';
   else if (purchaseUsed) reason = 'One purchase per turn. Yours is spent.';
@@ -201,7 +211,7 @@ function MarketRow({
 
       <div className="row-cost">
         {costs.length === 0 ? <span className="ci-blank">—</span> : costs.map((resource) => {
-          const need = def.cost?.[resource] ?? 0;
+          const need = cost?.[resource] ?? 0;
           const short = Math.max(0, need - resources[resource]);
           return (
             <span key={resource} className={`cost-pip cost-${resource}${short > 0 ? ' is-missing' : ''}`} title={`${need} ${RESOURCE_WORD[resource]}`}>
@@ -232,7 +242,7 @@ function MarketRow({
 
       {confirm && buyable ? (
         <div className="inline-confirm">
-          <p className="confirm-q">Buy {def.name} for {costLabel(def)}?</p>
+          <p className="confirm-q">Buy {def.name} for {costLabel(cost)}?</p>
           <p className="confirm-note">
             Goes straight to your discard. You cannot play it this turn.
             {movesRobber ? ' May move the robber when you play it.' : ''}

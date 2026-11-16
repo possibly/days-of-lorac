@@ -3,11 +3,12 @@
  *
  * `createGame` consumes randomness in this fixed order:
  *   1. board rotation (one draw), 2. board mirror (one draw), 3. map generation
- *   (variable draws, none when terrain and tokens are fixed), 4. first seat
- *   (one draw), 5. one shuffle per player, in seat order, for the 10-card
- *   starting decks.
- * The robber starts on the desert, the market is stocked to printed counts, and
- * the snake setup order is built from the seeded first seat. Hands are drawn (5
+ *   (variable draws, none when terrain and tokens are fixed), 4. card market
+ *   (variable draws, none when the pool is standard and costs are printed),
+ *   5. first seat (one draw), 6. one shuffle per player, in seat order, for the
+ *   10-card starting decks.
+ * The robber starts on the desert, the market is stocked from the resolved card
+ * settings, and the snake setup order is built from the seeded first seat. Hands are drawn (5
  * each) when the last setup road lands; drawing consumes no randomness.
  * `version`/`turn` stay 0 until then.
  */
@@ -19,8 +20,9 @@ import {
   emptyResources,
   targetVpFor,
 } from '../constants.js';
-import { PURCHASABLE_CARDS, getCard } from '../cards.js';
+import { getCard } from '../cards.js';
 import { DEFAULT_MAP_SETTINGS, maxSeatsFor, normalizeMapSettings } from '../map-settings.js';
+import { DEFAULT_CARD_SETTINGS, normalizeCardSettings, resolveMarket } from '../card-settings.js';
 import { RESOURCES } from '../types.js';
 import type {
   ActionErrorCode,
@@ -29,6 +31,7 @@ import type {
   CreateGameOptions,
   GameState,
   HexId,
+  PartialResources,
   PlayerState,
   ResourceMap,
   Seat,
@@ -78,6 +81,7 @@ export function createGame(options: CreateGameOptions): GameState {
 
   const seed = options.seed >>> 0;
   const mapSettings = normalizeMapSettings(options.map, DEFAULT_MAP_SETTINGS);
+  const cardSettings = normalizeCardSettings(options.cards, DEFAULT_CARD_SETTINGS);
   const seats = maxSeatsFor(mapSettings.size);
   if (playerCount > seats) {
     throw new Error(
@@ -92,6 +96,8 @@ export function createGame(options: CreateGameOptions): GameState {
   rng = mirror.state;
   const generated = generateMap(mapSettings, rng);
   rng = generated.state;
+  const resolvedMarket = resolveMarket(cardSettings, rng);
+  rng = resolvedMarket.state;
   const firstDraw = randomInt(rng, playerCount);
   rng = firstDraw.state;
   const firstSeat = firstDraw.value;
@@ -135,9 +141,6 @@ export function createGame(options: CreateGameOptions): GameState {
     });
   }
 
-  const market: Record<string, number> = {};
-  for (const card of PURCHASABLE_CARDS) market[card.id] = card.copies;
-
   const order = setupOrder(playerCount, firstSeat);
   const discardRequired: Record<Seat, number> = {};
   const longestRoadLength: Record<Seat, number> = {};
@@ -149,7 +152,13 @@ export function createGame(options: CreateGameOptions): GameState {
   const state: GameState = {
     gameId: options.gameId ?? `lorac-${seed}-${playerCount}`,
     version: 0,
-    config: { playerCount, targetVp: targetVpFor(playerCount, mapSettings.size), map: mapSettings, seed },
+    config: {
+      playerCount,
+      targetVp: targetVpFor(playerCount, mapSettings.size),
+      map: mapSettings,
+      cards: cardSettings,
+      seed,
+    },
     rng,
     phase: 'setup',
     turn: 0,
@@ -161,7 +170,8 @@ export function createGame(options: CreateGameOptions): GameState {
     roads: {},
     robberHex: desertHexId(board),
     players,
-    market,
+    market: resolvedMarket.market,
+    cardCosts: resolvedMarket.costs,
     dice: null,
     discardQueue: [],
     discardRequired,
@@ -177,9 +187,9 @@ export function createGame(options: CreateGameOptions): GameState {
   addLog(
     state,
     'setup',
-    `New game: ${playerCount} players, first to ${state.config.targetVp} victory points. ${state.players[firstSeat]?.name ?? 'Someone'} picks first.`,
+    `New game: ${playerCount} players, first to ${state.config.targetVp} victory points, ${cardSettings.pool} market at ${cardSettings.costs} prices. ${state.players[firstSeat]?.name ?? 'Someone'} picks first.`,
     null,
-    { playerCount, targetVp: state.config.targetVp, firstSeat },
+    { playerCount, targetVp: state.config.targetVp, firstSeat, cards: cardSettings },
   );
   refreshDerived(state);
   return state;
@@ -187,6 +197,12 @@ export function createGame(options: CreateGameOptions): GameState {
 
 function cloneCardList(cards: readonly CardInstance[]): CardInstance[] {
   return cards.map((card) => ({ iid: card.iid, defId: card.defId }));
+}
+
+function copyCosts(costs: Record<string, PartialResources>): Record<string, PartialResources> {
+  const out: Record<string, PartialResources> = {};
+  for (const [defId, cost] of Object.entries(costs)) out[defId] = { ...cost };
+  return out;
 }
 
 /** Deep copy of everything mutable. The board is immutable and shared. */
@@ -207,7 +223,11 @@ export function cloneState(state: GameState): GameState {
   return {
     gameId: state.gameId,
     version: state.version,
-    config: { ...state.config, map: { ...state.config.map } },
+    config: {
+      ...state.config,
+      map: { ...state.config.map },
+      cards: { ...state.config.cards },
+    },
     rng: state.rng,
     phase: state.phase,
     turn: state.turn,
@@ -243,6 +263,7 @@ export function cloneState(state: GameState): GameState {
       bought: { ...player.bought },
     })),
     market: { ...state.market },
+    cardCosts: copyCosts(state.cardCosts),
     dice: state.dice
       ? {
           die1: state.dice.die1,

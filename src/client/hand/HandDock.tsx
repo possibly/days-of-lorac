@@ -296,6 +296,7 @@ export function HandDock({ view, playableIids, choiceIids, selectedIid, onPlay, 
               <CardFace
                 card={card}
                 def={def}
+                cost={view.cardCosts[card.defId]}
                 playable={playableIids.has(card.iid)}
                 needsChoice={choiceIids.has(card.iid)}
                 selected={selectedIid === card.iid}

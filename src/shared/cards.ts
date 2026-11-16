@@ -201,6 +201,109 @@ export const CARD_DEFS: CardDef[] = [
     ],
   },
 
+  // Expansion piles. `expansion: true` keeps them out of the standard market;
+  // expanded games stock the whole list, varied games deal a seeded subset.
+  {
+    id: 'tar-kiln',
+    name: 'Tar Kiln',
+    kind: 'market',
+    cost: { wood: 3 },
+    copies: 6,
+    text: 'Gain 2 Brick and 1 Wood.',
+    flavor: 'Slow smoke, hard goods.',
+    tags: ['economy'],
+    expansion: true,
+    effects: [{ kind: 'gain', resources: { brick: 2, wood: 1 } }],
+  },
+  {
+    id: 'salt-pans',
+    name: 'Salt Pans',
+    kind: 'market',
+    cost: { brick: 3 },
+    copies: 6,
+    text: 'Gain 2 Sheep and 1 Wheat.',
+    flavor: 'The sun does the work.',
+    tags: ['economy'],
+    expansion: true,
+    effects: [{ kind: 'gain', resources: { sheep: 2, wheat: 1 } }],
+  },
+  {
+    id: 'copper-works',
+    name: 'Copper Works',
+    kind: 'market',
+    cost: { brick: 2 },
+    copies: 5,
+    text: 'Gain 1 Ore and 1 Wood.',
+    flavor: 'Green metal, honest price.',
+    tags: ['economy'],
+    expansion: true,
+    effects: [{ kind: 'gain', resources: { ore: 1, wood: 1 } }],
+  },
+  {
+    id: 'tide-reader',
+    name: 'Tide Reader',
+    kind: 'market',
+    cost: { wheat: 3 },
+    copies: 6,
+    text: 'Gain 1 Renown. Draw 2 cards.',
+    flavor: 'She reads the water and the guild pays for it.',
+    tags: ['renown', 'cycling'],
+    expansion: true,
+    effects: [
+      { kind: 'renown', amount: 1 },
+      { kind: 'draw', count: 2 },
+    ],
+  },
+  {
+    id: 'pilot-skiff',
+    name: 'Pilot Skiff',
+    kind: 'market',
+    cost: { wood: 2 },
+    copies: 5,
+    text: 'Gain 1 Sheep and 1 Wheat.',
+    flavor: 'A short run out to the good pasture.',
+    tags: ['economy'],
+    expansion: true,
+    effects: [{ kind: 'gain', resources: { sheep: 1, wheat: 1 } }],
+  },
+  {
+    id: 'smithy-row',
+    name: 'Smithy Row',
+    kind: 'market',
+    cost: { ore: 3 },
+    copies: 6,
+    text: 'Gain 2 Ore and 1 Brick.',
+    flavor: 'Ash on the doorstep, iron in the yard.',
+    tags: ['economy'],
+    expansion: true,
+    effects: [{ kind: 'gain', resources: { ore: 2, brick: 1 } }],
+  },
+  {
+    id: 'road-crew',
+    name: 'Road Crew',
+    kind: 'market',
+    cost: { brick: 2 },
+    copies: 5,
+    text: 'Place a road for free. If you cannot, gain 1 Wood and 1 Brick.',
+    flavor: 'Two hands, one causeway.',
+    tags: ['board'],
+    expansion: true,
+    choice: 'road',
+    effects: [{ kind: 'freeRoad', fallback: { wood: 1, brick: 1 } }],
+  },
+  {
+    id: 'granary',
+    name: 'Granary',
+    kind: 'market',
+    cost: { wheat: 3 },
+    copies: 6,
+    text: 'Gain 2 Wheat and 1 Sheep.',
+    flavor: 'Full sacks make calm neighbours.',
+    tags: ['economy'],
+    expansion: true,
+    effects: [{ kind: 'gain', resources: { wheat: 2, sheep: 1 } }],
+  },
+
   // Charters: permanent VP, dead draws forever.
   {
     id: 'quay-deed',
@@ -226,6 +329,32 @@ export const CARD_DEFS: CardDef[] = [
     tags: ['scoring'],
     effects: [],
   },
+  {
+    id: 'salt-charter',
+    name: 'Salt Charter',
+    kind: 'charter',
+    cost: { wood: 2, brick: 1, sheep: 1, wheat: 1 },
+    copies: 5,
+    text: 'Worth 1 Victory Point.',
+    flavor: 'Rights to the pans, and to the road that reaches them.',
+    vp: 1,
+    tags: ['scoring'],
+    expansion: true,
+    effects: [],
+  },
+  {
+    id: 'harbour-charter',
+    name: 'Harbour Charter',
+    kind: 'charter',
+    cost: { wood: 2, brick: 2, sheep: 2, wheat: 2, ore: 1 },
+    copies: 3,
+    text: 'Worth 2 Victory Points.',
+    flavor: 'A whole harbour is a heavy piece of paper.',
+    vp: 2,
+    tags: ['scoring'],
+    expansion: true,
+    effects: [],
+  },
 ];
 
 export const CARD_BY_ID: ReadonlyMap<string, CardDef> = new Map(
@@ -246,6 +375,11 @@ export function cardMovesRobber(def: CardDef): boolean {
 export const STARTING_CARDS = CARD_DEFS.filter((card) => card.kind === 'starting');
 export const MARKET_CARDS = CARD_DEFS.filter((card) => card.kind === 'market');
 export const CHARTER_CARDS = CARD_DEFS.filter((card) => card.kind === 'charter');
+
+/** The piles a standard game stocks, in printed order. */
+export const BASE_MARKET_CARDS = MARKET_CARDS.filter((card) => !card.expansion);
+/** The charter stacks a standard game stocks, in printed order. */
+export const BASE_CHARTER_CARDS = CHARTER_CARDS.filter((card) => !card.expansion);
 
 /** Piles and charters together, in printed display order. */
 export const PURCHASABLE_CARDS = CARD_DEFS.filter(

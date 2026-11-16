@@ -262,8 +262,9 @@ export function legalMoves(state: GameState, seat: Seat): LegalMoves {
   if (actionPhase && player && !state.turnFlags.purchased) {
     for (const card of PURCHASABLE_CARDS) {
       if ((state.market[card.id] ?? 0) <= 0) continue;
-      if (!card.cost) continue;
-      if (!canAfford(player.resources, card.cost)) continue;
+      const cost = state.cardCosts[card.id];
+      if (!cost) continue;
+      if (!canAfford(player.resources, cost)) continue;
       buyable.push(card.id);
     }
   }

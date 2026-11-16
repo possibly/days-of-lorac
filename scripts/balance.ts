@@ -12,6 +12,8 @@
  *   --games N            games per (player count, difficulty) matchup
  *   --players 2,3,4      player counts to run
  *   --difficulty D       easy | normal | hard | all
+ *   --cards P            standard | expanded | varied
+ *   --costs C            printed | shuffled
  *   --seed N             first seed; game i uses seed + i
  *   --max-actions N      per-game action cap before the run is called a stall
  *   --json               print the raw report as JSON instead of the summary
@@ -21,6 +23,11 @@
  */
 import { runBalance, formatReport, DIFFICULTIES } from '../src/server/bots/simulate.js';
 import type { SimOptions } from '../src/server/bots/simulate.js';
+import {
+  DEFAULT_CARD_SETTINGS,
+  isCardCostMode,
+  isCardPoolMode,
+} from '../src/shared/card-settings.js';
 import type { BotDifficulty } from '../src/shared/types.js';
 
 interface ParsedArgs {
@@ -97,6 +104,20 @@ function parseArgs(argv: string[]): ParsedArgs {
         const parsed = parseDifficulty(raw, errors);
         if (parsed) options.difficulties = parsed;
       }
+    } else if (flag === '--cards') {
+      const raw = next();
+      if (raw === null || !isCardPoolMode(raw)) {
+        errors.push('--cards must be standard, expanded or varied');
+      } else {
+        options.cards = { ...(options.cards ?? DEFAULT_CARD_SETTINGS), pool: raw };
+      }
+    } else if (flag === '--costs') {
+      const raw = next();
+      if (raw === null || !isCardCostMode(raw)) {
+        errors.push('--costs must be printed or shuffled');
+      } else {
+        options.cards = { ...(options.cards ?? DEFAULT_CARD_SETTINGS), costs: raw };
+      }
     } else if (flag === '--seed') {
       const raw = next();
       const seed = raw === null ? NaN : Number.parseInt(raw, 10);
@@ -118,9 +139,11 @@ function parseArgs(argv: string[]): ParsedArgs {
 const HELP = `Days of Lorac balance sim
 
   npm run sim -- [games] [--players 2,3,4] [--difficulty easy|normal|hard|all]
+                  [--cards standard|expanded|varied] [--costs printed|shuffled]
                   [--seed N] [--max-actions N] [--json]
 
-Defaults: 10 games per matchup, players 2,3,4, difficulty normal, seed 1.
+Defaults: 10 games per matchup, players 2,3,4, difficulty normal, seed 1,
+standard cards at printed prices.
 `;
 
 async function main(): Promise<void> {

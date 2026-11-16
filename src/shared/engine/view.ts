@@ -38,6 +38,12 @@ function copyDice(dice: DiceRoll): DiceRoll {
   };
 }
 
+function copyCosts(costs: Record<string, PartialResources>): Record<string, PartialResources> {
+  const out: Record<string, PartialResources> = {};
+  for (const [defId, cost] of Object.entries(costs)) out[defId] = { ...cost };
+  return out;
+}
+
 function copyOffer(offer: TradeOffer): TradeOffer {
   return {
     id: offer.id,
@@ -87,6 +93,7 @@ export function viewFor(
       playerCount: state.config.playerCount,
       targetVp: state.config.targetVp,
       map: { ...state.config.map },
+      cards: { ...state.config.cards },
     },
     targetVp: state.config.targetVp,
     phase: state.phase,
@@ -107,6 +114,7 @@ export function viewFor(
     robberHex: state.robberHex,
     players,
     market: { ...state.market },
+    cardCosts: copyCosts(state.cardCosts),
     dice: state.dice ? copyDice(state.dice) : null,
     discardQueue: state.discardQueue.slice(),
     discardRequired: { ...state.discardRequired },

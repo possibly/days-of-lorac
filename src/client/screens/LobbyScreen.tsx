@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import type { LobbyView } from '@shared/protocol';
 import type { ChatMessage } from '@shared/protocol';
-import type { BotDifficulty, MapSettings, Seat } from '@shared/types';
+import type { BotDifficulty, CardSettings, MapSettings, Seat } from '@shared/types';
 import { describeMap } from '@shared/map-settings';
+import { describeCards } from '@shared/card-settings';
 import { Button } from '../ui/Button';
 import { MapSettingsForm } from '../ui/MapSettingsForm';
+import { CardSettingsForm } from '../ui/CardSettingsForm';
 import { SeatCoin } from '../ui/SeatCoin';
 import { PeerInvitePanel } from './PeerInvitePanel';
 import { usePeer } from '../net/peer/usePeer';
@@ -17,6 +19,7 @@ interface LobbyScreenProps {
   onReady: (ready: boolean) => void;
   onStart: () => void;
   onMap: (map: MapSettings) => void;
+  onCards: (cards: CardSettings) => void;
   onAddBot: (difficulty: BotDifficulty) => void;
   onRemove: (seat: Seat) => void;
   onLeave: () => void;
@@ -32,6 +35,7 @@ export function LobbyScreen({
   onReady,
   onStart,
   onMap,
+  onCards,
   onAddBot,
   onRemove,
   onLeave,
@@ -42,6 +46,7 @@ export function LobbyScreen({
   // The host owns the map setting. The draft keeps rapid clicks from snapping
   // back to the last broadcast while a change is in flight.
   const [mapDraft, setMapDraft] = useState<MapSettings>(lobby.config.map);
+  const [cardDraft, setCardDraft] = useState<CardSettings>(lobby.config.cards);
   const me = lobby.players.find((player) => player.seat === you);
   const peerState = usePeer();
   const peerHosting = peerState.role === 'host';
@@ -56,6 +61,10 @@ export function LobbyScreen({
     setMapDraft(lobby.config.map);
   }, [lobby.config.map.size, lobby.config.map.terrain, lobby.config.map.tokens]);
 
+  useEffect(() => {
+    setCardDraft(lobby.config.cards);
+  }, [lobby.config.cards.pool, lobby.config.cards.costs]);
+
   return (
     <main className="lobby-screen">
       <header className="lobby-head">
@@ -64,6 +73,7 @@ export function LobbyScreen({
           <h1 className="panel-title">Room <span className="room-code big-code">{lobby.code}</span></h1>
           <p className="lobby-sub">Race to {lobby.targetVp} · {lobby.config.maxPlayers} seats · fill difficulty {lobby.config.difficulty}</p>
           <p className="lobby-sub lobby-map-line">{describeMap(lobby.config.map)}</p>
+          <p className="lobby-sub lobby-map-line">{describeCards(lobby.config.cards)}</p>
         </div>
         <div className="lobby-head-actions">
           <Button variant="ghost" onClick={onRules}>Rules</Button>
@@ -129,6 +139,22 @@ export function LobbyScreen({
               />
             ) : (
               <p className="map-note">The host picks the island size, land, and numbers. Changes show up here before the start.</p>
+            )}
+          </div>
+
+          <div className="lobby-map">
+            <h2 className="panel-title small">Cards</h2>
+            {isHost ? (
+              <CardSettingsForm
+                value={cardDraft}
+                disabled={!connected}
+                onChange={(next) => {
+                  setCardDraft(next);
+                  onCards(next);
+                }}
+              />
+            ) : (
+              <p className="map-note">The host picks the card pool and whether prices are shuffled. Changes show up here before the start.</p>
             )}
           </div>
 

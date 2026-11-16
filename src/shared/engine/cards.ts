@@ -279,12 +279,13 @@ export function buyCard(draft: GameState, seat: Seat, action: BuyCardAction): En
 
   const stock = draft.market[def.id] ?? 0;
   if (stock <= 0) return failure('PILE_EMPTY', `${def.name} is sold out.`);
-  if (!def.cost) return failure('INVALID_ACTION', `${def.name} has no printed cost.`);
-  if (!canAfford(player.resources, def.cost)) {
+  const cost = draft.cardCosts[def.id];
+  if (!cost) return failure('INVALID_ACTION', `${def.name} is not in this market.`);
+  if (!canAfford(player.resources, cost)) {
     return failure('CANNOT_AFFORD', `You cannot afford ${def.name}.`);
   }
 
-  payCost(player, def.cost);
+  payCost(player, cost);
   draft.market[def.id] = stock - 1;
 
   const instance = { iid: draft.nextCardIid, defId: def.id };
@@ -300,9 +301,9 @@ export function buyCard(draft: GameState, seat: Seat, action: BuyCardAction): En
   addLog(
     draft,
     'buy',
-    `${player.name} buys ${def.name} for ${describeResources(def.cost)}.`,
+    `${player.name} buys ${def.name} for ${describeResources(cost)}.`,
     seat,
-    { defId: def.id, remaining: stock - 1, purchases: player.purchases },
+    { defId: def.id, remaining: stock - 1, purchases: player.purchases, cost },
   );
 
   return null;

@@ -21,6 +21,11 @@ Victory target is 14 points with four players, 16 with three, 18 with two.
 Settlements score 1, cities 2, each award 2, charters 1 or 2. One market
 purchase per turn. A game runs roughly 25 to 35 minutes.
 
+Before the first card is dealt, the host picks the island and the card market.
+The card market can be the standard printed set, the expanded file, or a seeded
+random draw, and prices can be printed or shuffled within their cost tier. The
+defaults are the standard game. See [docs/CARDS.md](docs/CARDS.md) section 10.
+
 ## Quick start
 
 ```bash
@@ -57,6 +62,10 @@ Pages build picks it up. Until then the deployed game is solo only.
 To try multiplayer locally, start the relay, then open
 `http://127.0.0.1:5173/?relay=http://127.0.0.1:8787`.
 
+Measure a card mode headlessly with `--cards standard|expanded|varied` and
+`--costs printed|shuffled`, for example
+`npm run sim -- 50 --cards varied --costs shuffled`.
+
 ## Layout
 
 ```
@@ -71,7 +80,9 @@ docs/             rules, card manifest, UI spec, contracts
 
 `@shared/*` maps to `src/shared/*`. Shared code is pure: no DOM, no Node imports,
 no dates, no `Math.random`. Randomness comes from a seeded PRNG in game state, so
-a seed plus an action list replays exactly.
+a seed plus an action list replays exactly. The card market is resolved from the
+same seed: which piles are stocked and what they cost live in game state, not in
+the card definitions.
 
 Design docs: `docs/GAME-DESIGN.md` (rules and economy), `docs/CARDS.md` (card
 manifest), `docs/UI-SPEC.md` (screens), `docs/CONTRACTS.md` (engine and protocol).

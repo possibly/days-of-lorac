@@ -4,9 +4,11 @@ Companion to `docs/GAME-DESIGN.md`. That file owns the rules. This file owns
 card data: ids, costs, copy counts, exact player-facing text, effect
 specification, edge cases, and the bot heuristic for each card.
 
-Cross-checks (see section 7 for the arithmetic): 10 market piles, 58 pile
-cards, 2 charter stacks, 13 charter cards, 71 cards in the market, 10 cards in
-each starting deck.
+Cross-checks (see section 7 for the arithmetic): the standard market is 10
+market piles, 58 pile cards, 2 charter stacks, 13 charter cards, 71 cards in the
+market, 10 cards in each starting deck. The expansion adds 8 piles and 2 charter
+stacks, for 18 piles and 4 stacks in the full file. Section 10 explains the
+settings that decide which of them reach the table.
 
 ---
 
@@ -26,11 +28,21 @@ play. Every card with a board target has a printed fallback, so no card can
 fail to resolve.
 
 **Choice flag.** `choice: yes` means the card needs a modal or a targeting
-state. Four cards total, listed in section 8. Everything else resolves with a
-single click and no input.
+state. Four cards in the standard market, plus Road Crew in the expansion.
+Section 8 lists them. Everything else resolves with a single click and no
+input.
 
 **Renown** is a public counter, not a card in play. It is never spent and never
 lost.
+
+**Expansion cards.** Cards marked `expansion: true` in the implementation never
+appear in a standard game. They are in the expanded and varied pools, which the
+host picks before the first card is dealt (section 10).
+
+**Prices are data, not text.** A card's printed cost is its design cost, not a
+constant. A shuffled-price game trades costs between cards of the same tier, so
+the engine stores the resolved price per game and the UI reads that. Card text
+never names a cost, which is what makes the swap safe.
 
 ---
 
@@ -102,6 +114,38 @@ terrain (10 pips) and the most expensive thing to buy, which is why the deck
 has to cover roughly one ore per turn or nobody can build a city. That is the
 single most important balance relationship in the game: the deck exists to make
 ore affordable, and the market exists to make you pay for it.
+
+### 3.1 Expansion manifest
+
+Stocks only in expanded and varied games. Costs and copy counts are printed
+values; a shuffled-price game may move the resource, never the total.
+
+| id | Name | Cost | Copies |
+| --- | --- | --- | --- |
+| `tar-kiln` | Tar Kiln | 3 Wood | 6 |
+| `salt-pans` | Salt Pans | 3 Brick | 6 |
+| `copper-works` | Copper Works | 2 Brick | 5 |
+| `tide-reader` | Tide Reader | 3 Wheat | 6 |
+| `pilot-skiff` | Pilot Skiff | 2 Wood | 5 |
+| `smithy-row` | Smithy Row | 3 Ore | 6 |
+| `road-crew` | Road Crew | 2 Brick | 5 |
+| `granary` | Granary | 3 Wheat | 6 |
+| | **Pile subtotal** | | **45** |
+| `salt-charter` | Salt Charter | 2 Wood, 1 Brick, 1 Sheep, 1 Wheat | 5 |
+| `harbour-charter` | Harbour Charter | 2 each of Wood, Brick, Sheep, Wheat; 1 Ore | 3 |
+| | **Charter subtotal** | | **8** |
+| | **Expansion total** | | **53** |
+
+Full file: 103 pile cards and 21 charter cards, 124 cards. The expansion adds
+120 resource units of pile demand over 45 cards, an average of 2.67. Most of it
+is brick (38) and wheat (36), because the expansion's job is to give those two
+resources something to buy besides settlements and roads. It adds no pile that
+costs sheep.
+
+A varied game deals 12 piles and 2 charters from the full file, with one pile
+per resource guaranteed and one cheap plus one premium charter. That is fewer
+piles than standard, so the market reads as a shorter, sharper list instead of
+a wall of cards.
 
 ---
 
@@ -383,6 +427,29 @@ ore affordable, and the market exists to make you pay for it.
   decisive purchase in 32% of 4p games, under the 35% watch line. If that
   climbs again, raise the cost to 10 before touching copies.
 
+### 4.13 Expansion cards
+
+The expansion is deliberately plain. Every card uses an effect the standard set
+already has, so the engine, the bots, and the choice inventory do not grow a new
+branch for each one.
+
+| id | Effect spec | Reads as | Bot note |
+| --- | --- | --- | --- |
+| `tar-kiln` | `gain(brick,2); gain(wood,1)` | a wood-to-brick conversion in the Salvage Yard shape | buy when wood is over 4 and brick is short |
+| `salt-pans` | `gain(sheep,2); gain(wheat,1)` | a brick-to-sheep conversion | the brick sink when roads are done |
+| `copper-works` | `gain(ore,1); gain(wood,1)` | the cheapest way to turn brick into one ore | buy when one ore completes a city |
+| `tide-reader` | `gainRenown(1); draw(2)` | Survey Voyage's cheaper, lighter cousin | buy at 2 renown to seal the award |
+| `pilot-skiff` | `gain(sheep,1); gain(wheat,1)` | a 2-wood wash that fixes a missing settlement resource | buy when settlement cost is one short |
+| `smithy-row` | `gain(ore,2); gain(brick,1)` | the ore engine that also pays a road | buy with a city in reach |
+| `road-crew` | free road, else `gain(wood,1); gain(brick,1)` | Guild Mason without the draw and one brick cheaper | buy only when a road is wanted |
+| `granary` | `gain(wheat,2); gain(sheep,1)` | the wheat engine for cities and settlements | buy when wheat is short |
+| `salt-charter` | 1 VP, permanently owned | a second 1-VP deed with a different mix | same policy as Quay Deed |
+| `harbour-charter` | 2 VP, permanently owned | a mixed 9-resource premium deed | same policy as Fleet Charter |
+
+Both new charters sit in the same cost tiers as the printed ones (1 VP at 5
+resources, 2 VP at 9), so a shuffled-price game can swap their costs without
+changing what a point costs.
+
 ---
 
 ## 5. Strategy map
@@ -505,6 +572,20 @@ Charters:
 
 Market total: 58 + 13 = 71.
 
+Expansion piles:
+
+```
+6 + 6 + 5 + 6 + 5 + 6 + 5 + 6 = 45
+```
+
+Expansion charters: 5 (Salt Charter) + 3 (Harbour Charter) = 8.
+Expansion total: 45 + 8 = 53. Full file: 71 + 53 = 124.
+
+A varied game stocks 12 pile stacks and 2 charter stacks. Standard stocks 71
+cards, expanded stocks 124. Supply still covers demand in every mode: a
+4-player game buys about 40 cards, and the smallest mode has 12 piles at 4 or
+more copies each.
+
 Starting deck per player: 2 + 2 + 2 + 2 + 2 = 10.
 
 Deck size at the end of a 4-player game: 10 start + 8 to 10 purchases = 18 to
@@ -536,13 +617,15 @@ resolves and updates the board.
 | Provisioner | 2 resources, repeats allowed | small modal, five rows with plus and minus, confirm | the two resources that finish the nearest settlement or city |
 | Wrecker's Lamp | hex, then victim | board targeting then a player chooser; both cancellable | the leader's highest-pip hex, then the leader |
 | Guild Mason | one road edge | reuse the paid road placement flow, cost waived | edge with the most new reachable vertices |
+| Road Crew | one road edge | same flow as Guild Mason | same edge choice as Guild Mason |
 | Shipwright's Yard | one vertex | reuse the paid settlement placement flow, cost waived | highest-pip legal vertex |
 
-Everything else, including all charters, the starting deck, and the eight
-market cards not listed above, resolves with no input.
+Everything else, including all charters, the starting deck, and every other
+pile, resolves with no input.
 
-Do not add a fifth card with a choice in v1. Each one costs a modal, a bot
-branch, a test, and a source of misclicks.
+Do not add another card with a choice without a reason. Each one costs a modal,
+a bot branch, a test, and a source of misclicks. Road Crew earns its slot by
+being the cheapest road card in the file.
 
 ---
 
@@ -564,3 +647,64 @@ Listed so nobody adds them by accident.
   single-type so the market is readable and so the board, not the market,
   decides what you can afford.
 - Any second disruption card. One is a lever. Two is a grinding game.
+
+---
+
+## 10. Card dynamics
+
+Two settings decide which cards reach the table. The host picks them next to the
+island settings, in solo setup, a peer host, or a lobby. Both default to the
+standard game, so a player who touches nothing gets the printed market at the
+printed prices.
+
+### 10.1 Pool
+
+| Mode | What it stocks |
+| --- | --- |
+| Standard | the ten printed piles and two printed charters, always |
+| Expanded | every pile and charter in the file: 18 piles, 4 charters |
+| Varied | a seeded draw of 12 piles and 2 charters from the full file |
+
+Varied guarantees one pile for every resource. If the draw leaves a resource
+with no pile, a slot is taken from a resource that has two. It also deals one
+charter worth at most 1 VP and one worth more, so a blocked player always has a
+sink and the endgame always has a prize. Then it sorts the drawn cards into
+printed order so the rail reads the same way every game.
+
+### 10.2 Prices
+
+| Mode | What it does |
+| --- | --- |
+| Printed | the designed cost of each card |
+| Shuffled | costs are traded among cards of the same tier |
+
+A tier is every pile with the same total cost, or every charter with the same
+VP. Tiers are 2, 3 and 4 for piles, and 1 VP and 2 VP for charters. Shuffling
+inside a tier keeps the economy honest: no card gets cheaper or dearer in total,
+but a strong effect can end up asking for a resource your board does not make.
+Mixed pile costs never appear, because every pile in a tier is single-resource
+and the shuffle only swaps whole cost vectors.
+
+### 10.3 Determinism and wiring
+
+`resolveMarket` runs once in `createGame`, after map generation and before the
+first-seat draw, and returns the next RNG state, the stock map, and the price
+map. Standard at printed prices consumes no randomness, so the seed produces
+the same board, first seat and decks as before this feature existed.
+
+- `state.market` and `view.market` hold only the cards in play.
+- `state.cardCosts` and `view.cardCosts` hold this game's price for each of
+them. `def.cost` is the printed price and stays the fallback.
+- `config.cards` is public and tells the client which mode it is looking at.
+- `buyCard` charges `cardCosts[defId]`, never `def.cost`.
+- Bots read `view.cardCosts` for purchase scoring, so a shuffled game does not
+  fool them into pricing a card at its printed resource.
+
+The standard modes are the balance baseline. Expanded and varied games are
+candidates for their own balance pass before anyone treats their win rates as
+meaningful. The simulator takes the same settings:
+
+```
+npm run sim -- 50 --players 4 --cards expanded
+npm run sim -- 50 --players 4 --cards varied --costs shuffled
+```

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { GAME_VERSION } from '@shared/version';
-import type { GameAction, GameView, MapSettings, Seat } from '@shared/types';
+import type { CardSettings, GameAction, GameView, MapSettings, Seat } from '@shared/types';
 import { normalizeMapSettings } from '@shared/map-settings';
 import { client } from './net/store';
 import { useGame } from './net/useGame';
@@ -262,6 +262,7 @@ export default function App(): JSX.Element {
         onReady={(ready) => client.setReady(ready)}
         onStart={() => client.startGame()}
         onMap={(map) => client.setMapSettings(map)}
+        onCards={(cards) => client.setCardSettings(cards)}
         onAddBot={(difficulty) => client.addBot(difficulty)}
         onRemove={(seat) => client.removePlayer(seat)}
         onLeave={goTitle}
@@ -361,11 +362,17 @@ export default function App(): JSX.Element {
     setScreen('game');
   }
 
-  function startSolo(person: string, seats: 2 | 3 | 4, difficulty: 'easy' | 'normal' | 'hard', map: MapSettings): void {
+  function startSolo(
+    person: string,
+    seats: 2 | 3 | 4,
+    difficulty: 'easy' | 'normal' | 'hard',
+    map: MapSettings,
+    cards: CardSettings,
+  ): void {
     setName(person);
     saveName(person);
     if (fixtureMode) return;
-    client.quickPlay(person, seats, difficulty, map);
+    client.quickPlay(person, seats, difficulty, map, cards);
   }
 
   function startPeerHost(config: HostRoomConfig): void {

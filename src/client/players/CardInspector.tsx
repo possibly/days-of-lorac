@@ -1,4 +1,4 @@
-import type { CardDef, CardInstance } from '@shared/types';
+import type { CardDef, CardInstance, PartialResources } from '@shared/types';
 import { getCard } from '@shared/cards';
 import { ResourceIcon } from '../ui/icons';
 import { Button } from '../ui/Button';
@@ -6,6 +6,7 @@ import { Button } from '../ui/Button';
 /** Rail inspector: full card text and the single action the card allows. */
 export function CardInspector({
   card,
+  cost,
   playable,
   needsChoice,
   onPlay,
@@ -13,6 +14,8 @@ export function CardInspector({
   letters,
 }: {
   card: CardInstance;
+  /** This game's price when it differs from the printed one. */
+  cost?: PartialResources | null;
   playable: boolean;
   needsChoice: boolean;
   onPlay?: () => void;
@@ -21,8 +24,9 @@ export function CardInspector({
 }): JSX.Element {
   const def = safeCard(card.defId);
   if (!def) return <div className="card-inspector">Unknown card</div>;
-  const cost = def.cost
-    ? Object.entries(def.cost).filter(([, n]) => (n ?? 0) > 0)
+  const price = cost ?? def.cost;
+  const costs = price
+    ? Object.entries(price).filter(([, n]) => (n ?? 0) > 0)
     : [];
   return (
     <aside className="card-inspector" aria-label={`${def.name} inspector`}>
@@ -32,7 +36,7 @@ export function CardInspector({
       </header>
       <h3 className="ci-name">{def.name}</h3>
       <div className="ci-cost">
-        {cost.length === 0 ? <span className="ci-blank">—</span> : cost.map(([resource, count]) => (
+        {costs.length === 0 ? <span className="ci-blank">—</span> : costs.map(([resource, count]) => (
           <span key={resource} className="cost-pip">
             <span className="pip-n">{count}</span>
             <ResourceIcon resource={resource as never} size={10} letters={letters} />

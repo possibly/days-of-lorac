@@ -986,6 +986,51 @@ describe('map settings', () => {
   });
 });
 
+describe('card settings', () => {
+  it('lets only the host change the market, and deals it when the game starts', () => {
+    const context = makeManager();
+    const { code, conns } = makeRoom(context, { seats: 2, humans: 2 });
+    const host = conns[0] as FakeConn;
+    const guest = conns[1] as FakeConn;
+
+    context.manager.setCardSettings(host, { pool: 'expanded', costs: 'shuffled' });
+    expect(host.last('lobby')?.room.config.cards).toEqual({ pool: 'expanded', costs: 'shuffled' });
+    expect(guest.last('lobby')?.room.config.cards.pool).toBe('expanded');
+
+    context.manager.setCardSettings(guest, { pool: 'standard', costs: 'printed' });
+    expect(errorCode(guest)).toBe('NOT_HOST');
+
+    context.manager.setReady(guest, true);
+    context.manager.startGame(host);
+    const room = stateOf(context.manager, code);
+    expect(room.state?.config.cards).toEqual({ pool: 'expanded', costs: 'shuffled' });
+    expect(Object.keys(room.state?.market ?? {}).length).toBeGreaterThan(12);
+    expect(Object.keys(room.state?.cardCosts ?? {}).sort()).toEqual(
+      Object.keys(room.state?.market ?? {}).sort(),
+    );
+  });
+
+  it('refuses a market that is not one of the offered modes', () => {
+    const context = makeManager();
+    const { conns } = makeRoom(context, { seats: 2, humans: 1 });
+    const host = conns[0] as FakeConn;
+    context.manager.setCardSettings(host, { pool: 'huge', costs: 'printed' });
+    expect(errorCode(host)).toBe('INVALID_ROOM');
+  });
+
+  it('locks the market once the game is running', () => {
+    const context = makeManager();
+    const { code, conns } = makeRoom(context, { seats: 2, humans: 2 });
+    const host = conns[0] as FakeConn;
+    const guest = conns[1] as FakeConn;
+    context.manager.setReady(guest, true);
+    context.manager.startGame(host);
+    expect(stateOf(context.manager, code).status).toBe('playing');
+    context.manager.setCardSettings(host, { pool: 'varied', costs: 'shuffled' });
+    expect(errorCode(host)).toBe('ALREADY_STARTED');
+  });
+});
+
 describe('room metadata', () => {  it('reports share-link info without leaking tokens', () => {
     const context = makeManager();
     const { code } = makeRoom(context, { seats: 3, humans: 2 });

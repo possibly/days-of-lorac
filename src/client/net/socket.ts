@@ -16,7 +16,7 @@ import type {
   ServerMessage,
   WireErrorCode,
 } from '@shared/protocol';
-import type { GameAction, GameView, MapSettings, Seat } from '@shared/types';
+import type { CardSettings, GameAction, GameView, MapSettings, Seat } from '@shared/types';
 import { GAME_VERSION } from '@shared/version';
 import { SOCKET_OPEN } from './peer/socket-like';
 import type { SocketLike } from './peer/socket-like';
@@ -296,8 +296,9 @@ export class GameClient {
     seats: 2 | 3 | 4,
     difficulty: 'easy' | 'normal' | 'hard',
     map: MapSettings,
+    cards: CardSettings,
   ): void {
-    this.send({ type: 'quickPlay', name, seats, difficulty, map });
+    this.send({ type: 'quickPlay', name, seats, difficulty, map, cards });
   }
 
   createRoom(
@@ -305,8 +306,9 @@ export class GameClient {
     maxPlayers: 2 | 3 | 4,
     difficulty: 'easy' | 'normal' | 'hard',
     map: MapSettings,
+    cards: CardSettings,
   ): void {
-    this.send({ type: 'createRoom', name, maxPlayers, difficulty, map });
+    this.send({ type: 'createRoom', name, maxPlayers, difficulty, map, cards });
   }
 
   joinRoom(code: string, name: string): void {
@@ -330,6 +332,10 @@ export class GameClient {
 
   setMapSettings(map: MapSettings): void {
     this.send({ type: 'setMapSettings', map });
+  }
+
+  setCardSettings(cards: CardSettings): void {
+    this.send({ type: 'setCardSettings', cards });
   }
 
   addBot(difficulty: 'easy' | 'normal' | 'hard'): void {

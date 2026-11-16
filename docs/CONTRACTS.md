@@ -39,6 +39,11 @@ bestBankRate(state: GameState, seat: Seat, give: Resource): number
   map layout for `options.map` (defaults to the classic fixed standard island),
   then builds the full graph, ports, terrain, and tokens. Fixed land and fixed
   numbers consume no randomness; other modes draw from the same RNG.
+- Resolves the card market for `options.cards` (defaults to the standard pool at
+  printed prices). The result is `state.market` (stock by defId) and
+  `state.cardCosts` (price by defId). Standard at printed prices consumes no
+  randomness, so default games replay exactly as before the feature. The mode
+  goes on the public config as `config.cards`.
 - Refuses a player count the island cannot seat (`compact` holds two).
 - Draws a seeded `firstSeat` after the board draws, before the deck shuffles.
   `setup.order[0]`, `firstSeat`, and the first play turn all agree.
@@ -50,6 +55,9 @@ bestBankRate(state: GameState, seat: Seat, give: Resource): number
   and draws 5. Do this after the board and first-seat draw so RNG order is
   stable.
 - `log` has a setup entry per placement, not a per-card entry.
+- The market stocks only the cards this game deals. `def.cost` is the printed
+  price; `state.cardCosts[defId]` is the price this game charges. `buyCard`,
+  `legalMoves().buyable`, and the bots read the latter.
 - `version = 0`, `turn = 0` until setup ends. When the last setup road lands:
   `setup = null`, `phase = 'roll'`, `turn = 1`, `currentSeat = firstSeat`, and
   append a turn-start log entry.

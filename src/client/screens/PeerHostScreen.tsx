@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import type { BotDifficulty, MapSettings } from '@shared/types';
+import type { BotDifficulty, CardSettings, MapSettings } from '@shared/types';
 import { DEFAULT_MAP_SETTINGS, maxSeatsFor } from '@shared/map-settings';
+import { DEFAULT_CARD_SETTINGS } from '@shared/card-settings';
 import { Button } from '../ui/Button';
 import { MapSettingsForm } from '../ui/MapSettingsForm';
+import { CardSettingsForm } from '../ui/CardSettingsForm';
 import type { HostRoomConfig } from '../net/peer/session';
 
 /**
@@ -26,6 +28,7 @@ export function PeerHostScreen({
   const [maxPlayers, setMaxPlayers] = useState<2 | 3 | 4>(4);
   const [difficulty, setDifficulty] = useState<BotDifficulty>('normal');
   const [map, setMap] = useState<MapSettings>(DEFAULT_MAP_SETTINGS);
+  const [cards, setCards] = useState<CardSettings>(DEFAULT_CARD_SETTINGS);
   const maxSeats = maxSeatsFor(map.size);
   const ready = name.trim().length > 0;
 
@@ -35,7 +38,7 @@ export function PeerHostScreen({
         className="parchment setup-panel"
         onSubmit={(event) => {
           event.preventDefault();
-          if (ready) onStart({ name: name.trim(), maxPlayers, difficulty, map });
+          if (ready) onStart({ name: name.trim(), maxPlayers, difficulty, map, cards });
         }}
       >
         <p className="eyebrow">Peer table</p>
@@ -91,6 +94,8 @@ export function PeerHostScreen({
             if (maxPlayers > maxSeatsFor(next.size)) setMaxPlayers(2);
           }}
         />
+
+        <CardSettingsForm value={cards} onChange={setCards} />
 
         <div className="setup-actions">
           <Button variant="primary" type="submit" disabled={!ready} reason={!ready ? 'Pick a name first.' : null}>Open the table</Button>

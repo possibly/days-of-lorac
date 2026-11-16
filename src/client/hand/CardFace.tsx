@@ -1,4 +1,4 @@
-import type { CardDef, CardInstance, Resource } from '@shared/types';
+import type { CardDef, CardInstance, PartialResources, Resource } from '@shared/types';
 import { RESOURCES } from '@shared/types';
 import { getCard } from '@shared/cards';
 import { ResourceIcon } from '../ui/icons';
@@ -37,6 +37,8 @@ export function cardDef(card: CardInstance): CardDef | null {
 interface CardFaceProps {
   card: CardInstance;
   def: CardDef;
+  /** This game's price when it differs from the printed one. */
+  cost?: PartialResources | null;
   playable: boolean;
   needsChoice: boolean;
   selected: boolean;
@@ -49,10 +51,11 @@ interface CardFaceProps {
 }
 
 /** One ledger card. Name one line, rules text verbatim, flavor in the footer. */
-export function CardFace({ card, def, playable, needsChoice, selected, duplicateCount, letters, deal, onPlay, onInspect }: CardFaceProps): JSX.Element {
+export function CardFace({ card, def, cost, playable, needsChoice, selected, duplicateCount, letters, deal, onPlay, onInspect }: CardFaceProps): JSX.Element {
   const primary = primaryResource(def);
-  const costs = def.cost
-    ? RESOURCES.filter((resource) => (def.cost?.[resource] ?? 0) > 0).map((resource) => ({ resource, count: def.cost?.[resource] ?? 0 }))
+  const price = cost ?? def.cost;
+  const costs = price
+    ? RESOURCES.filter((resource) => (price?.[resource] ?? 0) > 0).map((resource) => ({ resource, count: price?.[resource] ?? 0 }))
     : [];
   const oneEach = def.kind === 'charter' && costs.length >= 4 && costs.every((cost) => cost.count === 1);
   const label = playable

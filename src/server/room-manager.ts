@@ -14,6 +14,7 @@ import { RESOURCES } from '@shared/types';
 import type {
   ActionResult,
   BotDifficulty,
+  CardSettings,
   GameAction,
   GameState,
   MapSettings,
@@ -28,6 +29,11 @@ import {
   normalizeMapSettings,
   seatsFit,
 } from '@shared/map-settings';
+import {
+  DEFAULT_CARD_SETTINGS,
+  isValidCardSettings,
+  normalizeCardSettings,
+} from '@shared/card-settings';
 import type { ChatMessage, LobbyView, ServerMessage, WireErrorCode } from '@shared/protocol';
 import { chooseBotAction } from './bots/index.js';
 import {
@@ -166,7 +172,13 @@ export class RoomManager {
 
   quickPlay(
     conn: ClientConnection,
-    input: { name: string; seats: 2 | 3 | 4; difficulty: BotDifficulty; map?: MapSettings },
+    input: {
+      name: string;
+      seats: 2 | 3 | 4;
+      difficulty: BotDifficulty;
+      map?: MapSettings;
+      cards?: CardSettings;
+    },
   ): void {
     const name = sanitizeName(input.name);
     if (!name) return this.error(conn, 'NAME_REQUIRED', 'Pick a name before playing.');
@@ -175,6 +187,7 @@ export class RoomManager {
     }
     const difficulty = difficultyOr(input.difficulty, 'normal');
     const map = normalizeMapSettings(input.map, DEFAULT_MAP_SETTINGS);
+    const cards = normalizeCardSettings(input.cards, DEFAULT_CARD_SETTINGS);
     if (!seatsFit(map, input.seats)) {
       return this.error(
         conn,
@@ -185,7 +198,7 @@ export class RoomManager {
 
     this.detach(conn);
     try {
-      const room = this.newRoom(input.seats, difficulty, map);
+      const room = this.newRoom(input.seats, difficulty, map, cards);
       const human = this.addHuman(room, 0, name);
       for (let seat = 1; seat < input.seats; seat += 1) this.addBot(room, seat, difficulty);
       room.status = 'playing';
@@ -207,7 +220,13 @@ export class RoomManager {
 
   createRoom(
     conn: ClientConnection,
-    input: { name: string; maxPlayers: 2 | 3 | 4; difficulty: BotDifficulty; map?: MapSettings },
+    input: {
+      name: string;
+      maxPlayers: 2 | 3 | 4;
+      difficulty: BotDifficulty;
+      map?: MapSettings;
+      cards?: CardSettings;
+    },
   ): void {
     const name = sanitizeName(input.name);
     if (!name) return this.error(conn, 'NAME_REQUIRED', 'Pick a name before creating a room.');
@@ -216,6 +235,7 @@ export class RoomManager {
     }
     const difficulty = difficultyOr(input.difficulty, 'normal');
     const map = normalizeMapSettings(input.map, DEFAULT_MAP_SETTINGS);
+    const cards = normalizeCardSettings(input.cards, DEFAULT_CARD_SETTINGS);
     if (!seatsFit(map, input.maxPlayers)) {
       return this.error(
         conn,
@@ -226,7 +246,7 @@ export class RoomManager {
 
     this.detach(conn);
     try {
-      const room = this.newRoom(input.maxPlayers, difficulty, map);
+      const room = this.newRoom(input.maxPlayers, difficulty, map, cards);
       const host = this.addHuman(room, 0, name);
       host.connected = true;
       host.connection = conn;
@@ -391,6 +411,27 @@ export class RoomManager {
       return;
     }
     room.config.map = next;
+    this.broadcastLobby(room);
+  }
+
+  /** Host-only: pick the card pool and pricing before the first card is dealt. */
+  setCardSettings(conn: ClientConnection, cards: unknown): void {
+    const found = this.lookup(conn);
+    if (!found) return this.error(conn, 'NOT_IN_ROOM', 'You are not in a room.');
+    const { room, slot } = found;
+    if (room.hostSeat !== slot.seat || slot.isBot) {
+      return this.error(conn, 'NOT_HOST', 'Only the host can set the market.');
+    }
+    if (room.status !== 'lobby') {
+      return this.error(conn, 'ALREADY_STARTED', 'The market is locked once the game starts.');
+    }
+    if (!isValidCardSettings(cards)) {
+      return this.error(conn, 'INVALID_ROOM', 'That card setting is not one of the offered markets.');
+    }
+    const next = normalizeCardSettings(cards, room.config.cards);
+    const current = room.config.cards;
+    if (next.pool === current.pool && next.costs === current.costs) return;
+    room.config.cards = next;
     this.broadcastLobby(room);
   }
 
@@ -876,12 +917,17 @@ export class RoomManager {
   // Seats, hosts, timers
   // -------------------------------------------------------------------------
 
-  private newRoom(maxPlayers: 2 | 3 | 4, difficulty: BotDifficulty, map: MapSettings): Room {
+  private newRoom(
+    maxPlayers: 2 | 3 | 4,
+    difficulty: BotDifficulty,
+    map: MapSettings,
+    cards: CardSettings,
+  ): Room {
     return {
       code: this.allocateCode(),
       createdAt: this.clock.now(),
       hostSeat: 0,
-      config: { maxPlayers, difficulty, map: { ...map } },
+      config: { maxPlayers, difficulty, map: { ...map }, cards: { ...cards } },
       status: 'lobby',
       seats: [null, null, null, null],
       state: null,
@@ -958,6 +1004,7 @@ export class RoomManager {
     return createGame({
       playerCount,
       map: room.config.map,
+      cards: room.config.cards,
       seed: this.nextSeed(),
       // Random, so the public id says nothing about the seed. Bot tie-breaks
       // still work: they hash the id, they do not invert it.

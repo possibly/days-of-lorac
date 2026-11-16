@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import type { BotDifficulty, MapSettings } from '@shared/types';
+import type { BotDifficulty, CardSettings, MapSettings } from '@shared/types';
 import { targetVpFor } from '@shared/constants';
 import { DEFAULT_MAP_SETTINGS, maxSeatsFor } from '@shared/map-settings';
+import { DEFAULT_CARD_SETTINGS } from '@shared/card-settings';
 import { Button } from '../ui/Button';
 import { MapSettingsForm } from '../ui/MapSettingsForm';
+import { CardSettingsForm } from '../ui/CardSettingsForm';
 
 export function SoloSetupScreen({
   initialName,
@@ -12,7 +14,13 @@ export function SoloSetupScreen({
   onRules,
 }: {
   initialName: string;
-  onStart: (name: string, seats: 2 | 3 | 4, difficulty: BotDifficulty, map: MapSettings) => void;
+  onStart: (
+    name: string,
+    seats: 2 | 3 | 4,
+    difficulty: BotDifficulty,
+    map: MapSettings,
+    cards: CardSettings,
+  ) => void;
   onBack: () => void;
   onRules: () => void;
 }): JSX.Element {
@@ -20,6 +28,7 @@ export function SoloSetupScreen({
   const [seats, setSeats] = useState<2 | 3 | 4>(4);
   const [difficulty, setDifficulty] = useState<BotDifficulty>('normal');
   const [map, setMap] = useState<MapSettings>(DEFAULT_MAP_SETTINGS);
+  const [cards, setCards] = useState<CardSettings>(DEFAULT_CARD_SETTINGS);
   const target = targetVpFor(seats, map.size);
   const maxSeats = maxSeatsFor(map.size);
   const ready = name.trim().length > 0;
@@ -30,7 +39,7 @@ export function SoloSetupScreen({
         className="parchment setup-panel"
         onSubmit={(event) => {
           event.preventDefault();
-          if (ready) onStart(name.trim(), seats, difficulty, map);
+          if (ready) onStart(name.trim(), seats, difficulty, map, cards);
         }}
       >
         <p className="eyebrow">Solo table</p>
@@ -77,6 +86,8 @@ export function SoloSetupScreen({
             if (seats > maxSeatsFor(next.size)) setSeats(2);
           }}
         />
+
+        <CardSettingsForm value={cards} onChange={setCards} />
 
         <p className="target-note">
           <b>Race to {target}.</b> {seats}-player target. Victory is checked after every action.

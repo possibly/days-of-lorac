@@ -11,6 +11,7 @@
  * tests drive the manager with fake connections and a fake clock.
  */
 import { targetVpFor } from '@shared/constants';
+import { DEFAULT_CARD_SETTINGS } from '@shared/card-settings';
 import type { BotDifficulty, GameState, Seat } from '@shared/types';
 import type {
   ChatMessage,
@@ -256,7 +257,11 @@ export function buildLobbyView(room: Room): LobbyView {
     code: room.code,
     status: room.status,
     hostSeat: room.hostSeat,
-    config: { ...room.config },
+    config: {
+      ...room.config,
+      map: { ...room.config.map },
+      cards: { ...DEFAULT_CARD_SETTINGS, ...room.config.cards },
+    },
     targetVp: targetVpFor(room.config.maxPlayers, room.config.map.size),
     players,
   };

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EdgeId, GameState, VertexId } from '../../types.js';
-import { CARD_BY_ID, CARD_DEFS, CHARTER_CARDS, cardMovesRobber } from '../../cards.js';
+import { BASE_CHARTER_CARDS, CARD_BY_ID, CARD_DEFS, cardMovesRobber } from '../../cards.js';
 import { legalMoves, scorePlayer, viewFor } from '../index.js';
 import {
   act,
@@ -384,7 +384,9 @@ describe('charters and purchases', () => {
     );
     const counts = Object.values(state.market).reduce((sum, count) => sum + count, 0);
     expect(counts).toBe(printed);
-    for (const card of CHARTER_CARDS) expect(state.market[card.id]).toBe(card.copies);
+    // A standard game stocks the printed charters. The expansion charters are
+    // only on the table in expanded or varied games.
+    for (const card of BASE_CHARTER_CARDS) expect(state.market[card.id]).toBe(card.copies);
     expect(CARD_BY_ID.get('quay-deed')?.vp).toBe(1);
     expect(CARD_BY_ID.get('fleet-charter')?.vp).toBe(2);
   });

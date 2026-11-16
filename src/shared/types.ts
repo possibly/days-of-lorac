@@ -44,6 +44,28 @@ export interface MapSettings {
 }
 
 // ---------------------------------------------------------------------------
+// Card settings (also chosen by the host before the game starts)
+// ---------------------------------------------------------------------------
+
+export type CardPoolMode = 'standard' | 'expanded' | 'varied';
+export type CardCostMode = 'printed' | 'shuffled';
+
+/**
+ * What the market stocks and how it is priced.
+ *
+ * `standard` is the printed set at printed prices, which is the game as it has
+ * always played. `expanded` stocks every card in the file, `varied` deals a
+ * random subset from that pool each game, and `shuffled` prices swap places
+ * between cards of the same cost tier so a pile costs the same total but not
+ * always the same resource. Every mode is seeded, so a seed and a set of
+ * settings rebuild the same market.
+ */
+export interface CardSettings {
+  pool: CardPoolMode;
+  costs: CardCostMode;
+}
+
+// ---------------------------------------------------------------------------
 // Board
 // ---------------------------------------------------------------------------
 
@@ -156,6 +178,8 @@ export interface CardDef {
   choiceOptional?: boolean;
   tags: CardTag[];
   effects: CardEffect[];
+  /** True for cards that only join the market in expanded or varied games. */
+  expansion?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -261,6 +285,7 @@ export interface PublicGameConfig {
   playerCount: number;
   targetVp: number;
   map: MapSettings;
+  cards: CardSettings;
 }
 
 /** Server-side config. `seed` stays on `GameState` and never on the wire. */
@@ -295,6 +320,8 @@ export interface GameState {
   players: PlayerState[];
   /** defId -> remaining copies. Charters live here too. */
   market: Record<string, number>;
+  /** defId -> this game's price. Shuffled games reuse printed costs across tiers. */
+  cardCosts: Record<string, PartialResources>;
   dice: DiceRoll | null;
   /** Players who still owe a discard after a 7. Empty outside that step. */
   discardQueue: Seat[];
@@ -475,6 +502,8 @@ export interface GameView {
   robberHex: HexId;
   players: PlayerView[];
   market: Record<string, number>;
+  /** Prices for the cards this game stocks. Printed costs for everyone else. */
+  cardCosts: Record<string, PartialResources>;
   dice: DiceRoll | null;
   discardQueue: Seat[];
   discardRequired: Record<Seat, number>;
@@ -494,6 +523,8 @@ export interface CreateGameOptions {
   seed: number;
   /** Board size and placement. Defaults to the classic fixed island. */
   map?: MapSettings;
+  /** Card pool and pricing. Defaults to the printed market at printed costs. */
+  cards?: CardSettings;
   /**
    * Public game id. Defaults to `lorac-${seed}-${playerCount}`, which the
    * balance simulator relies on for deterministic bot tie-breaks. The server

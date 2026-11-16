@@ -109,7 +109,12 @@ describe('viewFor', () => {
     expect(roundTrip.players[0]?.hand).toEqual(view.players[0]?.hand);
     expect(roundTrip.board.hexes).toHaveLength(19);
       expect(roundTrip.targetVp).toBe(state.config.targetVp);
-      expect(roundTrip.config).toEqual({ playerCount: 4, targetVp: state.config.targetVp, map: state.config.map });
+      expect(roundTrip.config).toEqual({
+        playerCount: 4,
+        targetVp: state.config.targetVp,
+        map: state.config.map,
+        cards: state.config.cards,
+      });
     expect(roundTrip.legal.buyable.length).toBeGreaterThan(0);
   });
 
@@ -151,7 +156,12 @@ describe('viewFor', () => {
 
     for (const seat of [0, 1, 2, 3]) {
       const view = viewFor(state, seat);
-      expect(view.config).toEqual({ playerCount: 4, targetVp: state.config.targetVp, map: state.config.map });
+      expect(view.config).toEqual({
+        playerCount: 4,
+        targetVp: state.config.targetVp,
+        map: state.config.map,
+        cards: state.config.cards,
+      });
       expect(view.config).not.toHaveProperty('seed');
       const serialized = JSON.stringify(view);
       expect(serialized).not.toContain('"seed"');

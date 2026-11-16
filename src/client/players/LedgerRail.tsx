@@ -33,6 +33,7 @@ export function LedgerRail({
       {inspected ? (
         <CardInspector
           card={inspected}
+          cost={view.cardCosts[inspected.defId]}
           playable={canPlayInspected}
           needsChoice={inspectedNeedsChoice}
           onPlay={canPlayInspected ? onPlayInspected : undefined}

@@ -7,8 +7,9 @@
  * file only checks that a message is well formed and hands it over.
  */
 import { isMapSize, isTerrainMode, isTokenMode } from '@shared/map-settings';
+import { isValidCardSettings, normalizeCardSettings } from '@shared/card-settings';
 import type { ClientMessage, ServerMessage, WireErrorCode } from '@shared/protocol';
-import type { BotDifficulty, GameAction, MapSettings, Seat } from '@shared/types';
+import type { BotDifficulty, CardSettings, GameAction, MapSettings, Seat } from '@shared/types';
 import type { RoomManager } from './room-manager.js';
 import type { ClientConnection } from './rooms.js';
 
@@ -56,6 +57,13 @@ function readMapSettings(value: unknown): MapSettings | null | undefined {
   return { size: value.size, terrain: value.terrain, tokens: value.tokens };
 }
 
+/** Same rule as the map: absent means the room default, malformed is rejected. */
+function readCardSettings(value: unknown): CardSettings | null | undefined {
+  if (value === undefined) return undefined;
+  if (!isValidCardSettings(value)) return null;
+  return normalizeCardSettings(value);
+}
+
 export function sendError(
   conn: ClientConnection,
   code: WireErrorCode,
@@ -97,6 +105,7 @@ export function routeClientMessage(
       const seats = readSeatCount(message.seats);
       const difficulty = readDifficulty(message.difficulty, 'normal');
       const map = readMapSettings(message.map);
+      const cards = readCardSettings(message.cards);
       if (name === null) return sendError(conn, 'BAD_MESSAGE', 'Quick play needs a name.');
       if (seats === null) return sendError(conn, 'BAD_MESSAGE', 'Choose 2, 3, or 4 seats.');
       if (difficulty === null) {
@@ -105,7 +114,16 @@ export function routeClientMessage(
       if (map === null) {
         return sendError(conn, 'BAD_MESSAGE', 'That island is not one of the offered maps.');
       }
-      manager.quickPlay(conn, { name, seats, difficulty, ...(map ? { map } : {}) });
+      if (cards === null) {
+        return sendError(conn, 'BAD_MESSAGE', 'That card market is not one of the offered ones.');
+      }
+      manager.quickPlay(conn, {
+        name,
+        seats,
+        difficulty,
+        ...(map ? { map } : {}),
+        ...(cards ? { cards } : {}),
+      });
       return;
     }
 
@@ -114,6 +132,7 @@ export function routeClientMessage(
       const maxPlayers = readSeatCount(message.maxPlayers);
       const difficulty = readDifficulty(message.difficulty, 'normal');
       const map = readMapSettings(message.map);
+      const cards = readCardSettings(message.cards);
       if (name === null) return sendError(conn, 'BAD_MESSAGE', 'A room needs a host name.');
       if (maxPlayers === null) return sendError(conn, 'BAD_MESSAGE', 'Rooms hold 2, 3, or 4 players.');
       if (difficulty === null) {
@@ -122,7 +141,16 @@ export function routeClientMessage(
       if (map === null) {
         return sendError(conn, 'BAD_MESSAGE', 'That island is not one of the offered maps.');
       }
-      manager.createRoom(conn, { name, maxPlayers, difficulty, ...(map ? { map } : {}) });
+      if (cards === null) {
+        return sendError(conn, 'BAD_MESSAGE', 'That card market is not one of the offered ones.');
+      }
+      manager.createRoom(conn, {
+        name,
+        maxPlayers,
+        difficulty,
+        ...(map ? { map } : {}),
+        ...(cards ? { cards } : {}),
+      });
       return;
     }
 
@@ -161,6 +189,13 @@ export function routeClientMessage(
       const map = readMapSettings(message.map);
       if (!map) return sendError(conn, 'BAD_MESSAGE', 'That island is not one of the offered maps.');
       manager.setMapSettings(conn, map);
+      return;
+    }
+
+    case 'setCardSettings': {
+      const cards = readCardSettings(message.cards);
+      if (!cards) return sendError(conn, 'BAD_MESSAGE', 'That card market is not one of the offered ones.');
+      manager.setCardSettings(conn, cards);
       return;
     }
 

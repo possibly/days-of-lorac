@@ -146,7 +146,7 @@ class PeerSession {
       return;
     }
 
-    onlineClient.createRoom(config.name, config.maxPlayers, config.difficulty, config.map);
+    onlineClient.createRoom(config.name, config.maxPlayers, config.difficulty, config.map, config.cards);
     const lobby = await waitFor(onlineClient, (snapshot) => snapshot.lobby !== null || snapshot.error !== null);
     if (this.host !== host) return;
     if (!lobby?.lobby) {

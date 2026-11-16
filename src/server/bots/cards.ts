@@ -209,14 +209,17 @@ function marketCardValue(sense: Sense, def: CardDef, w: BotWeights): number {
   const delta = (5 * (appearance - AVG_CARD_VALUE)) / (deckSize + 1);
   const turns = sense.turnsLeft();
   const benefit = delta * turns;
-  const cost = totalOf(def.cost ?? {});
+  // This game's price, not the printed one: shuffled-cost games move prices
+  // between cards inside a tier, so the bot has to read the market it sits at.
+  const price = sense.view.cardCosts[def.id] ?? def.cost;
+  const cost = totalOf(price ?? {});
   let net = benefit - cost * w.purchaseRatio;
 
   // One-ply lookahead: spending this now can push the next build out a turn.
-  if (w.lookahead > 0 && def.cost) {
+  if (w.lookahead > 0 && price) {
     const after: PartialResources = { ...sense.me.resources };
     for (const resource of RESOURCES) {
-      after[resource] = (after[resource] ?? 0) - (def.cost[resource] ?? 0);
+      after[resource] = (after[resource] ?? 0) - (price[resource] ?? 0);
     }
     const delay = sense.turnsToAffordWith(after, sense.plan.cost) - sense.plan.etaTurns;
     if (delay > 0.34) net -= delay * 1.4 * w.lookahead;
@@ -291,7 +294,7 @@ export function choosePurchase(sense: Sense, w: BotWeights): GameAction | null {
     if (!defId) continue;
     const def = CARD_BY_ID.get(defId);
     if (!def) continue;
-    const cost = totalOf(def.cost ?? {});
+    const cost = totalOf(sense.view.cardCosts[defId] ?? def.cost ?? {});
     const evaluated = def.kind === 'charter' ? charterValue(sense, def, w) : marketCardValue(sense, def, w);
     if (evaluated === null) continue;
     // discipline 1 scores the card; discipline 0 prefers whatever is cheapest.
