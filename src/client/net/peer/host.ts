@@ -54,6 +54,8 @@ export class PeerHost {
   private disposed = false;
   private onInvites: (() => void) | null = null;
 
+  private connectionCounter = 0;
+
   constructor() {
     this.manager = new RoomManager({
       clock: systemClock,
@@ -108,11 +110,10 @@ export class PeerHost {
     channel.onopen = () => {
       if (this.disposed) return;
       invite.connected = true;
-      this.attachGuest(invite);
+      invite.conn = this.addChannel(channel);
       this.onInvites?.();
     };
     channel.onclose = () => {
-      if (invite.conn) this.manager.handleDisconnect(invite.conn);
       invite.conn = null;
       invite.connected = false;
       this.pending.delete(id);
@@ -123,7 +124,6 @@ export class PeerHost {
     };
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
-        if (invite.conn) this.manager.handleDisconnect(invite.conn);
         invite.conn = null;
         this.pending.delete(id);
         this.onInvites?.();
@@ -191,10 +191,16 @@ export class PeerHost {
     this.pair.close();
   }
 
-  private attachGuest(invite: PendingInvite): void {
-    const { channel } = invite;
+  /**
+   * Wires an open data channel into the manager as a fresh client. Manual
+   * invites and the relay both end up here, so seat handling, welcome, rate
+   * limiting and disconnect are written once.
+   */
+  addChannel(channel: RTCDataChannel): ClientConnection | null {
+    if (this.disposed || channel.readyState !== 'open') return null;
+    const connectionId = `peer-c${(this.connectionCounter += 1)}`;
     const conn: ClientConnection = {
-      id: `peer-${invite.id}`,
+      id: connectionId,
       send: (message: ServerMessage) => {
         if (channel.readyState === 'open') channel.send(JSON.stringify(message));
       },
@@ -206,7 +212,6 @@ export class PeerHost {
         }
       },
     };
-    invite.conn = conn;
     const limiter = new SocketRateLimiter();
     channel.onmessage = (event: MessageEvent) => {
       const verdict = limiter.check(Date.now());
@@ -218,7 +223,11 @@ export class PeerHost {
       const data = typeof event.data === 'string' ? event.data : '';
       if (data) this.receive(conn, data);
     };
+    channel.addEventListener('close', () => {
+      this.manager.handleDisconnect(conn);
+    });
     this.sendWelcome(conn);
+    return conn;
   }
 
   /** Same contract as `ws.ts`: parse, route, never throw into the channel. */

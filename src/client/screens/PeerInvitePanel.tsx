@@ -10,9 +10,9 @@ import { usePeer } from '../net/peer/usePeer';
 /**
  * Host's invite card, shown inside the lobby while a peer table is open.
  *
- * One guest at a time: the offer on screen can only be answered by one reply, so
- * a second phone should scan the next invite. The host either pastes the reply
- * code or scans it with the camera.
+ * With a relay the card is a four-letter code and a QR of the join link; one
+ * code serves the whole table, one guest at a time. Without one it falls back to
+ * the direct flow: an offer link or QR out, a reply code or QR back.
  */
 export function PeerInvitePanel(): JSX.Element | null {
   const state = usePeer();
@@ -24,6 +24,7 @@ export function PeerInvitePanel(): JSX.Element | null {
 
   if (state.role !== 'host') return null;
 
+  const relay = state.mode === 'relay';
   const waiting = state.invites.filter((invite) => !invite.connected);
   const current = waiting[waiting.length - 1] ?? null;
   const connected = state.invites.filter((invite) => invite.connected).length;
@@ -51,11 +52,58 @@ export function PeerInvitePanel(): JSX.Element | null {
   return (
     <section className="peer-invite-panel" aria-label="Invite a phone">
       <header className="peer-invite-head">
-        <h2 className="panel-title small">Invite a phone</h2>
+        <h2 className="panel-title small">{relay ? 'Join code' : 'Invite a phone'}</h2>
         {connected > 0 ? <span className="badge badge-host">{connected} connected</span> : null}
       </header>
 
-      {current ? (
+      {relay ? (
+        state.relayCode && state.relayLink ? (
+          <>
+            <div className="relay-code" aria-label={`Join code ${state.relayCode}`}>
+              {[...state.relayCode].map((letter, index) => (
+                <span key={index} className="relay-letter">{letter}</span>
+              ))}
+            </div>
+            <div className="peer-invite-body">
+              <QrCode
+                text={state.relayLink}
+                size={Math.min(224, Math.max(160, window.innerWidth - 200))}
+                label={`Join link for code ${state.relayCode}`}
+              />
+              <div className="peer-invite-side">
+                <p className="peer-invite-note">
+                  Type the code on any device, or scan the code. One guest at a time; the next guest
+                  types the same code.
+                </p>
+                <input
+                  className="invite-link"
+                  readOnly
+                  value={state.relayLink}
+                  aria-label="Join link"
+                  onFocus={(event) => event.target.select()}
+                />
+                <div className="peer-invite-actions">
+                  <Button
+                    variant="secondary"
+                    className="btn-small"
+                    onClick={async () => setShare(await shareLink(state.relayLink ?? '', 'Days of Lorac invite'))}
+                  >
+                    {share === 'shared' ? 'Sent' : share === 'copied' ? 'Link copied' : share === 'manual' ? 'Select the link' : 'Send the link'}
+                  </Button>
+                  <Button variant="ghost" className="btn-small" onClick={() => peer.useDirectInvites()}>
+                    Use a direct link
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="peer-invite-body is-empty">
+            <p className="peer-invite-note">Opening a room code…</p>
+            <span className="spinner is-fast" aria-hidden="true" />
+          </div>
+        )
+      ) : current ? (
         <>
           <div className="peer-invite-body">
             <QrCode
@@ -79,6 +127,13 @@ export function PeerInvitePanel(): JSX.Element | null {
                   Cancel invite
                 </Button>
               </div>
+              <input
+                className="invite-link"
+                readOnly
+                value={current.link}
+                aria-label="Invite link"
+                onFocus={(event) => event.target.select()}
+              />
               <label className="field">
                 <span>Reply code</span>
                 <textarea
@@ -89,13 +144,6 @@ export function PeerInvitePanel(): JSX.Element | null {
                   onChange={(event) => setReply(event.target.value)}
                 />
               </label>
-              <input
-                className="invite-link"
-                readOnly
-                value={current.link}
-                aria-label="Invite link"
-                onFocus={(event) => event.target.select()}
-              />
               <div className="peer-invite-actions">
                 <Button variant="primary" className="btn-small" onClick={() => void submit(reply)} disabled={busy || !reply.trim()} reason={!reply.trim() ? 'Paste the reply first.' : null}>
                   Connect
@@ -104,9 +152,6 @@ export function PeerInvitePanel(): JSX.Element | null {
               </div>
             </div>
           </div>
-          {share === 'manual' ? (
-            <input className="invite-link" readOnly value={current.link} onFocus={(event) => event.target.select()} />
-          ) : null}
         </>
       ) : (
         <div className="peer-invite-body is-empty">

@@ -2,18 +2,30 @@
  * Peer session: the small state machine behind the peer screens.
  *
  * Host: spin up the in-tab server, become its first client, create a room, then
- * hand out invites. Guest: read an invite, answer it, wait for the host to
- * paste the reply, then join the room through the same online client.
+ * take guests. Guests arrive one of two ways, and the session owns both:
+ *
+ *   relay  - four-letter code through the Cloudflare relay (default when a
+ *            relay URL is configured), no copy and paste at all;
+ *   direct - an invite link or QR one way, a reply code back, which needs no
+ *            service anywhere.
  *
  * Everything the UI needs is in one external store so screens do not have to
  * thread callbacks around. React binding lives in `usePeer.ts`.
  */
+import { isRelayCode } from '@shared/relay';
 import type { ClientSnapshot } from '../socket';
 import { onlineClient, activateOffline, activateOnline, OFFLINE_MODE } from '../store';
 import type { GameStore } from '../store';
 import { PeerGuest } from './guest';
 import { PeerHost } from './host';
 import type { HostInvite, HostRoomConfig } from './host';
+import {
+  RelayGuest,
+  RelayHost,
+  readRelayCode,
+  relayBaseUrl,
+  relayJoinUrl,
+} from './relay';
 import { readHashCode, HASH_KEY } from './signaling';
 
 export type PeerRole = 'idle' | 'host' | 'guest';
@@ -27,15 +39,24 @@ export type PeerPhase =
   | 'connected'
   | 'error';
 
+/** How guests are being invited: through the relay, or by hand. */
+export type PeerMode = 'relay' | 'manual';
+
 export interface PeerSnapshot {
   role: PeerRole;
   phase: PeerPhase;
-  /** Room code, once one exists. */
+  mode: PeerMode | null;
+  /** True when this build has a relay URL, so codes are possible. */
+  relayAvailable: boolean;
+  /** The four-letter code guests type, when relaying. */
+  relayCode: string | null;
+  relayLink: string | null;
+  /** Room code inside the host tab, once one exists. */
   room: string | null;
   hostName: string | null;
   seats: 2 | 3 | 4;
   invites: HostInvite[];
-  /** Guest side: the reply to hand back to the host. */
+  /** Direct mode, guest side: the reply to hand back to the host. */
   answer: { code: string; link: string } | null;
   error: string | null;
 }
@@ -43,6 +64,10 @@ export interface PeerSnapshot {
 const INITIAL: PeerSnapshot = {
   role: 'idle',
   phase: 'idle',
+  mode: null,
+  relayAvailable: relayBaseUrl() !== null,
+  relayCode: null,
+  relayLink: null,
   room: null,
   hostName: null,
   seats: 4,
@@ -52,6 +77,7 @@ const INITIAL: PeerSnapshot = {
 };
 
 const START_TIMEOUT_MS = 15_000;
+const GUEST_TIMEOUT_MS = 25_000;
 
 function waitFor(
   store: GameStore,
@@ -84,6 +110,8 @@ class PeerSession {
   private readonly listeners = new Set<() => void>();
   private host: PeerHost | null = null;
   private guest: PeerGuest | null = null;
+  private relayHost: RelayHost | null = null;
+  private relayGuest: RelayGuest | null = null;
   private wakeLock: WakeLockSentinel | null = null;
   private watchLink: (() => void) | null = null;
 
@@ -133,14 +161,65 @@ class PeerSession {
     }
 
     host.setRoom({ code: lobby.lobby.code, host: config.name, seats: config.maxPlayers });
-    this.set({ phase: 'host-ready', room: lobby.lobby.code, hostName: config.name });
+    const relay = relayBaseUrl();
+    this.set({
+      phase: 'host-ready',
+      room: lobby.lobby.code,
+      hostName: config.name,
+      mode: relay ? 'relay' : 'manual',
+    });
     await this.holdWakeLock();
     this.watchConnection();
+
+    if (!relay) return;
+    await this.openRelay(relay, lobby.lobby.code);
+  }
+
+  /**
+   * Opens the relay room and publishes the code. A relay that will not start is
+   * not fatal: the host keeps the table and falls back to direct invites.
+   */
+  private async openRelay(base: string, room: string): Promise<void> {
+    const host = this.host;
+    if (!host) return;
+    const signaling = new RelayHost(base, room, {
+      onChannel: (channel) => {
+        host.addChannel(channel);
+      },
+      onGuestLeft: () => {
+        this.set({ invites: host.invites() });
+      },
+      onClosed: (reason) => {
+        if (this.snapshot.role !== 'host' || this.snapshot.phase === 'idle') return;
+        this.set({ error: `${reason} Direct invites still work.` });
+      },
+    });
+    this.relayHost = signaling;
+    try {
+      const code = await signaling.start();
+      this.set({ relayCode: code, relayLink: relayJoinUrl(code), invites: [] });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      this.set({
+        mode: 'manual',
+        relayCode: null,
+        relayLink: null,
+        error: `${detail} Falling back to direct invites.`,
+      });
+    }
+  }
+
+  /** Give up on the relay and use link and reply codes instead. */
+  useDirectInvites(): void {
+    this.relayHost?.stopSignaling();
+    this.relayHost = null;
+    this.set({ mode: 'manual', relayCode: null, relayLink: null, error: null, invites: [] });
   }
 
   async newInvite(): Promise<HostInvite | null> {
     const host = this.host;
     if (!host) return null;
+    if (this.snapshot.mode !== 'manual') return null;
     // Only one offer is on screen at a time, so an older waiting one is dead
     // weight: drop it before making the next, rather than leaving a peer
     // connection around that nobody can answer any more.
@@ -174,13 +253,28 @@ class PeerSession {
 
   // ----- guest --------------------------------------------------------------
 
-  /** Reads `#join=` from the current URL. Returns false when there is none. */
+  /** Reads `#code=` or `#join=` from the current URL. */
   async loadInviteFromUrl(): Promise<boolean> {
-    const code = readHashCode(window.location.href, HASH_KEY);
-    if (!code) return false;
-    return this.previewInvite(code);
+    const code = readRelayCode(window.location.href);
+    if (code) return this.previewCode(code);
+    const invite = readHashCode(window.location.href, HASH_KEY);
+    if (!invite) return false;
+    return this.previewInvite(invite);
   }
 
+  /** Relay mode: a four-letter code, no payload to decode. */
+  previewCode(input: string): boolean {
+    this.teardown();
+    const code = input.trim().toUpperCase();
+    if (!isRelayCode(code)) {
+      this.set({ ...INITIAL, phase: 'error', error: 'Codes are four letters. Check it and try again.' });
+      return false;
+    }
+    this.set({ ...INITIAL, role: 'guest', phase: 'guest-preview', mode: 'relay', relayCode: code });
+    return true;
+  }
+
+  /** Direct mode: an invite link or code with the offer inside it. */
   async previewInvite(input: string): Promise<boolean> {
     this.teardown();
     const guest = new PeerGuest();
@@ -193,6 +287,7 @@ class PeerSession {
     this.set({
       role: 'guest',
       phase: 'guest-preview',
+      mode: 'manual',
       room: offer.room,
       hostName: offer.host,
       seats: offer.seats,
@@ -204,6 +299,67 @@ class PeerSession {
   }
 
   async joinAsGuest(name: string): Promise<void> {
+    if (this.snapshot.mode === 'relay') {
+      await this.joinViaRelay(name);
+      return;
+    }
+    await this.joinViaDirect(name);
+  }
+
+  private async joinViaRelay(name: string): Promise<void> {
+    const base = relayBaseUrl();
+    const code = this.snapshot.relayCode;
+    if (!base || !code) {
+      this.fail('No relay is configured for this build.');
+      return;
+    }
+    this.set({ phase: 'guest-answering', error: null });
+    const guest = new RelayGuest(base, code, {
+      onFail: (reason) => {
+        if (this.snapshot.role !== 'guest') return;
+        if (this.snapshot.phase === 'connected') return;
+        this.fail(reason);
+      },
+    });
+    this.relayGuest = guest;
+
+    // Attach first: the welcome and the first view can arrive the moment the
+    // channel opens, and a client that attaches later misses them.
+    onlineClient.attachTransport(() => guest.socket());
+    activateOnline();
+    guest.connect();
+
+    const ready = await waitFor(
+      onlineClient,
+      (snapshot) =>
+        snapshot.ready ||
+        snapshot.mismatch ||
+        snapshot.link === 'closed' ||
+        this.snapshot.phase === 'error',
+      GUEST_TIMEOUT_MS,
+    );
+    if (this.snapshot.phase === 'error') return;
+    if (!ready?.ready) {
+      this.fail('The table did not answer. Ask the host for a new code.');
+      return;
+    }
+    const room = guest.room();
+    if (!room) {
+      this.fail('The host did not send a room code.');
+      return;
+    }
+    onlineClient.joinRoom(room, name);
+    const seated = await waitFor(onlineClient, (snapshot) => snapshot.lobby !== null || snapshot.game !== null || snapshot.error !== null);
+    if (!seated?.lobby && !seated?.game) {
+      this.fail(seated?.error?.message ?? 'The table did not seat you. It may be full or already started.');
+      return;
+    }
+    this.set({ phase: 'connected', room });
+    this.clearUrlCode();
+    this.watchConnection();
+  }
+
+  private async joinViaDirect(name: string): Promise<void> {
     const guest = this.guest;
     const offer = guest?.offer;
     if (!guest || !offer) {
@@ -240,6 +396,11 @@ class PeerSession {
       return;
     }
     onlineClient.joinRoom(offer.room, name);
+    const seated = await waitFor(onlineClient, (snapshot) => snapshot.lobby !== null || snapshot.game !== null || snapshot.error !== null);
+    if (!seated?.lobby && !seated?.game) {
+      this.fail(seated?.error?.message ?? 'The table did not seat you. It may be full or already started.');
+      return;
+    }
     this.set({ phase: 'connected' });
     this.watchConnection();
   }
@@ -305,6 +466,10 @@ class PeerSession {
   private teardown(): void {
     this.watchLink?.();
     this.watchLink = null;
+    this.relayHost?.close();
+    this.relayHost = null;
+    this.relayGuest?.close();
+    this.relayGuest = null;
     this.host?.dispose();
     this.host = null;
     this.guest?.dispose();

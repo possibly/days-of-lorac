@@ -13,10 +13,12 @@ shared engine.
 - **Online (own server):** `npm start`, then open `http://localhost:8096`.
   Create a room, share the four-letter code or `?room=CODE` link, add bots to
   open seats. Refresh resumes your seat.
-- **Peer table (no server at all):** in the Pages build, choose "Host a table".
-  Phones scan the invite QR or open the shared link and reply with a code the
-  host scans or pastes. The host's tab runs the room, bots included. See
-  [docs/PEER.md](docs/PEER.md).
+- **Peer table (no game server):** in the Pages build, choose "Host a table".
+  Guests type a four-letter code (or scan it) and connect straight to the host's
+  tab over WebRTC. The code is introduced by a small Cloudflare relay that only
+  carries the handshake; game data stays between the browsers. Without a relay
+  the same table works with invite links and reply codes. See
+  [docs/PEER.md](docs/PEER.md) and [relay/README.md](relay/README.md).
 
 Peer tables are the only mode that works on a static host with no service
 behind it. The trade is that the host's tab has to stay open and awake for the
@@ -46,6 +48,9 @@ Static build for GitHub Pages (no server, offline mode):
 VITE_BASE=/days-of-lorac/ npm run build:offline
 ```
 
+Set `VITE_RELAY_URL` at build time, or pass `?relay=https://…workers.dev`, to
+give the static build short join codes. Without one it offers direct invites.
+
 The offline flag is `VITE_OFFLINE=1`. Add `?offline=1` to any build to test the
 offline path without rebuilding. `VITE_BASE` must match the site path: `/<repo>/`
 for a project page, `/` for a user page or local server.
@@ -61,6 +66,9 @@ for a project page, `/` for a user page or local server.
 | `npm test` | Engine, rooms, bots, and protocol tests. |
 | `npm run check` | TypeScript only. |
 | `npm run sim -- 50` | Headless balance run, 50 games per matchup. |
+| `npm run relay:dev` | Signaling relay locally on :8787 (no account). |
+| `npm run relay:deploy` | Deploy the relay (free plan, needs `wrangler login`). |
+| `npm run relay:check` | Typecheck the relay Worker. |
 
 ## Layout
 

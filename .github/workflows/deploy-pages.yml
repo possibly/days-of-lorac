@@ -27,12 +27,16 @@ jobs:
 
       - run: npm ci
       - run: npm test
+      - run: npm run relay:check
 
       # VITE_BASE matches the project page path. A user page or custom domain
       # would set this to /.
       - run: npm run build:offline
         env:
           VITE_BASE: /${{ github.event.repository.name }}/
+          # Set the repository variable LORAC_RELAY_URL after deploying
+          # relay/. Empty means the build offers direct invites only.
+          VITE_RELAY_URL: ${{ vars.LORAC_RELAY_URL }}
 
       - uses: actions/configure-pages@v5
 

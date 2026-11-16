@@ -112,7 +112,7 @@ export default function App(): JSX.Element {
   useEffect(() => {
     if (peerBooted.current || fixtureMode) return;
     peerBooted.current = true;
-    if (!window.location.hash.includes('join=')) return;
+    if (!window.location.hash.includes('join=') && !window.location.hash.includes('code=')) return;
     void peer.loadInviteFromUrl().then((ok) => {
       if (ok) setScreen('peer-join');
     });
@@ -416,8 +416,8 @@ export default function App(): JSX.Element {
         onCreate={() => setScreen('create')}
         onJoin={() => { setJoinCode(''); setJoinLocked(false); setJoinNotice(null); setScreen('join'); }}
         showPeer={OFFLINE_MODE || isDev}
-        onPeerHost={() => setScreen('peer-host')}
-        onPeerJoin={() => { setJoinCode(''); setJoinLocked(false); setJoinNotice(null); setScreen('peer-join'); }}
+        onPeerHost={() => { peer.leave(); setScreen('peer-host'); }}
+        onPeerJoin={() => { peer.leave(); setJoinCode(''); setJoinLocked(false); setJoinNotice(null); setScreen('peer-join'); }}
         onResume={resume}
         onForget={forget}
         onRules={() => setRulesOpen(true)}

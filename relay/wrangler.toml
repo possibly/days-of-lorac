@@ -1,0 +1,13 @@
+# Free-tier signaling relay. No storage, no alarms, one SQLite-backed Durable
+# Object class (the free plan does not offer key-value-backed objects).
+name = "days-of-lorac-relay"
+main = "src/index.ts"
+compatibility_date = "2026-11-01"
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Room"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]

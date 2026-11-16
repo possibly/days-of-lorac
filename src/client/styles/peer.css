@@ -161,3 +161,52 @@
     width: min(240px, 72vw);
   }
 }
+
+/* Relay join code, the one thing guests have to type. */
+.relay-code {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 2px 0 4px;
+}
+.relay-letter {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 56px;
+  border: 1px solid rgba(160, 127, 61, 0.6);
+  border-radius: 4px;
+  background: rgba(255, 253, 245, 0.8);
+  font-family: var(--mono);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--ink-900);
+  box-shadow: inset 0 -2px 0 rgba(160, 127, 61, 0.18);
+}
+.relay-input {
+  font-family: var(--mono);
+  font-size: 26px;
+  letter-spacing: 0.35em;
+  text-align: center;
+  text-transform: uppercase;
+}
+.peer-manual-entry {
+  border-top: 1px solid rgba(160, 127, 61, 0.3);
+  padding-top: 8px;
+}
+.peer-manual-entry summary {
+  cursor: pointer;
+  font-size: 11.5px;
+  color: var(--ink-500);
+}
+.peer-manual-entry summary:hover { color: var(--ink-700); }
+.peer-manual-entry .field { margin-top: 8px; }
+
+@media (max-width: 420px) {
+  .relay-letter {
+    width: 38px;
+    height: 48px;
+    font-size: 24px;
+  }
+}
