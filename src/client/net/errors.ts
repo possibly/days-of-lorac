@@ -32,7 +32,6 @@ const LINES: Record<string, string> = {
   INVALID_ACTION: 'That action is not available.',
   INVALID_CHOICE: 'That is not a legal target for this card.',
   NO_CARD: 'That card is no longer in your hand.',
-  NO_UNDO: 'Only the last card you played can be taken back.',
   CARD_NOT_PLAYABLE: 'That card cannot be played right now.',
   INVALID_DISCARD: 'Discard exactly the required number.',
   DISCARD_NOT_REQUIRED: 'You do not owe a discard.',

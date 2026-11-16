@@ -362,11 +362,6 @@ Interaction:
 - Play with a click, `1` to `9`, or Space on focus. The card animates to the
   play area strip, a 40px row of 96x40 stubs along the dock's top left. Cards
   needing a choice open the targeting flow in section 9 and wait.
-- The last card played is a button in that strip, marked with a gold edge.
-  Clicking it restores the state from before that play: the card returns to
-  hand, resources and deck order return, and a free road or settlement is
-  removed. Any later action makes the play permanent. The view exposes the one
-  undoable iid as `unplayableIid`.
 
 At 1024 the compact face runs at 124x70 with a 12px name over two lines, 13px
 gains, and 9px effect labels. The inspector keeps the full text, cost, and
@@ -779,8 +774,7 @@ Build order, playable loop first:
 - No deck browsing. Deck order and contents are hidden from everyone, including
   the owner. Showing them breaks the rules.
 - No in-game chat. Lobby chat only, 3 lines, no unread badge.
-- No spectate or replay. One-step card takeback is the only undo: click the
-  last played stub before taking another action.
+- No spectate, replay, undo, or takebacks.
 - No stats, profiles, or history. Persist only the seat token, display name, and
   the sound toggle.
 - No counter-offers, no offer to a single player, no trade chat.

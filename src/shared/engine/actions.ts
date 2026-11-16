@@ -42,7 +42,6 @@ import { cloneState, drawCards, failure, performRobberMove } from './state.js';
 import { randomInt } from './rng.js';
 import type { EngineFailure } from './state.js';
 import { setupRoad, setupSettlement } from './setup.js';
-import { peekUndo, setUndo, takeUndo } from './undo.js';
 
 type DiscardAction = Extract<GameAction, { type: 'discard' }>;
 type MoveRobberAction = Extract<GameAction, { type: 'moveRobber' }>;
@@ -62,26 +61,6 @@ export function applyAction(state: GameState, seat: Seat, action: GameAction): A
     return { ok: false, code: 'GAME_OVER', message: 'The game is over.' };
   }
 
-  // Taking back a card is restoring the state immediately before that play.
-  // Only the last action has a snapshot, so a later roll, build, buy, or trade
-  // makes the play permanent.
-  if (action.type === 'unplayCard') {
-    const record = peekUndo(state);
-    const last = state.lastPlay;
-    if (!record || !last || last.seat !== seat || last.iid !== action.iid) {
-      return { ok: false, code: 'NO_UNDO', message: 'That card was not the last play.' };
-    }
-    takeUndo(state);
-    const restored = cloneState(record.before);
-    restored.version = state.version + 1;
-    // The takeback itself is the newest action; the card before it is not a
-    // second undo target.
-    restored.lastPlay = null;
-    addLog(restored, 'info', `${restored.players[seat]?.name ?? 'Player'} takes back ${record.name}.`, seat);
-    refreshDerived(restored);
-    return { ok: true, state: restored };
-  }
-
   const draft = cloneState(state);
   const problem = dispatch(draft, seat, action);
   if (problem) {
@@ -90,14 +69,6 @@ export function applyAction(state: GameState, seat: Seat, action: GameAction): A
 
   draft.version = state.version + 1;
   refreshDerived(draft);
-  if (action.type === 'playCard') {
-    const card = state.players[seat]?.hand.find((item) => item.iid === action.iid);
-    const name = card ? getCard(card.defId).name : 'a card';
-    draft.lastPlay = { seat, iid: action.iid, name };
-    setUndo(draft, { seat, iid: action.iid, name, before: state });
-  } else {
-    draft.lastPlay = null;
-  }
   return { ok: true, state: draft };
 }
 

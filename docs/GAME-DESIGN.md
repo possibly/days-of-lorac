@@ -399,9 +399,8 @@ first purchases feel like a real change.
   paid once, at purchase.
 - A card that cannot do its thing falls back to its printed fallback clause and
   then is done. No card can fail to resolve.
-- Played cards go to your discard at end of turn. The most recent play can be
-  taken back before you take another action; after that it never returns to
-  your hand.
+- Played cards go to your discard at end of turn. They never return to your
+  hand.
 
 ### 9.4 Drawing
 

@@ -11,7 +11,6 @@ interface HandDockProps {
   playableIids: Set<number>;
   selectedIid: number | null;
   onPlay: (iid: number) => void;
-  onUnplay: (iid: number) => void;
   onInspect: (card: CardInstance) => void;
   letters: boolean;
   boughtStub: { name: string; open: boolean } | null;
@@ -24,7 +23,7 @@ interface HandDockProps {
  * spec; tablets and phones get a flat scrolling row so the cards stay inside
  * the dock and nothing leans into the play strip.
  */
-export function HandDock({ view, playableIids, selectedIid, onPlay, onUnplay, onInspect, letters, boughtStub, reshuffling }: HandDockProps): JSX.Element {
+export function HandDock({ view, playableIids, selectedIid, onPlay, onInspect, letters, boughtStub, reshuffling }: HandDockProps): JSX.Element {
   const you = view.players[view.you];
   const dock = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(872);
@@ -248,27 +247,10 @@ export function HandDock({ view, playableIids, selectedIid, onPlay, onUnplay, on
         {played.map((card) => {
           const def = cardDef(card);
           if (!def) return null;
-          const canUnplay = card.iid === view.unplayableIid;
-          const body = (
-            <>
+          return (
+            <span key={card.iid} className="play-stub" data-play-iid={card.iid} title={`${def.name}: ${def.text}`}>
               <span className="play-stub-icon" style={{ color: `var(--${primaryResource(def)})` }}><ResourceIcon resource={primaryResource(def)} size={12} /></span>
               <span className="play-stub-name">{def.name}</span>
-            </>
-          );
-          return canUnplay ? (
-            <button
-              key={card.iid}
-              type="button"
-              className="play-stub is-unplayable"
-              data-play-iid={card.iid}
-              title={`Take back ${def.name}`}
-              onClick={() => onUnplay(card.iid)}
-            >
-              {body}
-            </button>
-          ) : (
-            <span key={card.iid} className="play-stub" data-play-iid={card.iid} title={`${def.name}: ${def.text}`}>
-              {body}
             </span>
           );
         })}

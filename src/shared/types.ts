@@ -299,12 +299,6 @@ export interface TurnFlags {
   purchased: boolean;
 }
 
-export interface LastPlay {
-  seat: Seat;
-  iid: number;
-  name: string;
-}
-
 export interface GameState {
   gameId: string;
   /** Increments on every accepted action. */
@@ -338,8 +332,6 @@ export interface GameState {
   nextLogId: number;
   nextCardIid: number;
   turnFlags: TurnFlags;
-  /** The most recent card play, while it can still be taken back. */
-  lastPlay: LastPlay | null;
   winner: Seat | null;
 }
 
@@ -365,7 +357,6 @@ export type GameAction =
   | { type: 'discard'; resources: PartialResources }
   | { type: 'moveRobber'; hex: HexId; victimSeat?: Seat }
   | { type: 'playCard'; iid: number; choice?: PlayChoice }
-  | { type: 'unplayCard'; iid: number }
   | { type: 'buildRoad'; edge: EdgeId }
   | { type: 'buildSettlement'; vertex: VertexId }
   | { type: 'buildCity'; vertex: VertexId }
@@ -391,7 +382,6 @@ export type ActionErrorCode =
   | 'PILE_EMPTY'
   | 'PURCHASE_LIMIT'
   | 'NO_CARD'
-  | 'NO_UNDO'
   | 'CARD_NOT_PLAYABLE'
   | 'CHOICE_REQUIRED'
   | 'INVALID_CHOICE'
@@ -497,8 +487,6 @@ export interface PlayerView {
 export interface GameView {
   gameId: string;
   version: number;
-  /** The last card this seat played, while it can still be taken back. */
-  unplayableIid: number | null;
   you: Seat;
   config: PublicGameConfig;
   targetVp: number;

@@ -85,14 +85,9 @@ export function viewFor(
     buildings[vertex] = { owner: building.owner, type: building.type };
   }
 
-  const lastPlay = state.lastPlay;
   return {
     gameId: state.gameId,
     version: state.version,
-    unplayableIid:
-      lastPlay && lastPlay.seat === seat && state.phase === 'action' && state.currentSeat === seat
-        ? lastPlay.iid
-        : null,
     you: seat,
     config: {
       playerCount: state.config.playerCount,
