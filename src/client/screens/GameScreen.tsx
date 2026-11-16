@@ -739,6 +739,7 @@ export function GameScreen({
             playableIids={playableIids}
             selectedIid={inspectedIid}
             onPlay={play}
+            onUnplay={(iid) => send({ type: 'unplayCard', iid })}
             onInspect={(card: CardInstance) => setInspectedIid(card.iid)}
             letters={letters}
             boughtStub={boughtStub}

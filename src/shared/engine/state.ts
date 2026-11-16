@@ -181,6 +181,7 @@ export function createGame(options: CreateGameOptions): GameState {
     nextLogId: 0,
     nextCardIid,
     turnFlags: { rolled: false, purchased: false },
+    lastPlay: null,
     winner: null,
   };
 
@@ -297,6 +298,7 @@ export function cloneState(state: GameState): GameState {
     nextLogId: state.nextLogId,
     nextCardIid: state.nextCardIid,
     turnFlags: { ...state.turnFlags },
+    lastPlay: state.lastPlay ? { ...state.lastPlay } : null,
     winner: state.winner,
   };
 }

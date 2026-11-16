@@ -163,6 +163,11 @@ the UI. They must agree with `legalMoves` and `refreshDerived`.
   steals. Charter cards have no play effect. A card that needs a choice and has
   a legal target but no choice is `CHOICE_REQUIRED`; if no target exists, use
   the fallback. Provisioner with no choice defaults to 2 wood.
+- **Card takeback.** `unplayCard` restores the state from before the most
+  recent `playCard` if no other action has been accepted since. `viewFor`
+  exposes that iid as `unplayableIid`; any other iid is `NO_UNDO`. The snapshot
+  lives in an engine-local `WeakMap` keyed by the returned state, so a state
+  that is cloned or rehydrated cannot take a card back.
 - **Awards.** Longest road: longest simple path of owned edges, blocked by
   opponent buildings; minimum 5. Largest expedition: most renown, minimum 3.
   Ties favor the current holder. With no holder, a tie at the top means nobody
