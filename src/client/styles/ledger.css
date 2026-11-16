@@ -135,7 +135,7 @@
 .pp-res-cell {
   flex: 1;
   min-width: 0;
-  height: 26px;
+  height: 30px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -151,6 +151,11 @@
 }
 .pp-res-cell.is-zero { color: var(--ink-500); }
 .pp-res-cell.is-zero .res-icon { opacity: 0.4; }
+.pp-res-cell .res-icon.res-wood { color: var(--wood); }
+.pp-res-cell .res-icon.res-brick { color: var(--brick); }
+.pp-res-cell .res-icon.res-sheep { color: var(--sheep); }
+.pp-res-cell .res-icon.res-wheat { color: var(--wheat); }
+.pp-res-cell .res-icon.res-ore { color: var(--ore); }
 
 /* Renown and route as live tracks: value, the number that pays, and who is in
    the way. One row each so a narrow panel never truncates the target. */

@@ -91,7 +91,7 @@ export function PlayerPanel({ view, player, isCurrent, isYou, isPilot, reshuffli
         <span className="seat-chip-res">
           {RESOURCES.map((resource) => (
             <span key={resource} className={`mini-res${player.resources[resource] === 0 ? ' is-zero' : ''}`}>
-              <ResourceIcon resource={resource} size={12} />
+              <ResourceIcon resource={resource} size={14} />
               <span>{player.resources[resource]}</span>
             </span>
           ))}
@@ -172,7 +172,7 @@ export function PlayerPanel({ view, player, isCurrent, isYou, isPilot, reshuffli
             className={`pp-res-cell${player.resources[resource] === 0 ? ' is-zero' : ''}`}
             title={`${RESOURCE_LABEL[resource]} ${player.resources[resource]}.`}
           >
-            <ResourceIcon resource={resource} size={14} letters={letters} />
+            <ResourceIcon resource={resource} size={16} letters={letters} />
             <span className="pp-res-count">{player.resources[resource]}</span>
           </span>
         ))}

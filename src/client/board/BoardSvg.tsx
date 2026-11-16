@@ -277,8 +277,12 @@ function HexLayer({
         const isRobber = hex.id === view.robberHex;
         const flash = flashSet.has(hex.id);
         const fill = TERRAIN_FILL[hex.terrain];
-        const iconScale = (0.5 * s) / 24;
-        const iconY = hex.y + (hex.token !== null ? 0.2 * s : 0.24 * s);
+        // The terrain badge sits above the number token, not under it. At the
+        // old centre-bottom position the token disc covered most of the glyph,
+        // which is why the resource was hard to read on the board.
+        const hasToken = hex.token !== null;
+        const iconScale = (0.28 * s) / 24;
+        const iconY = hex.y + (hasToken ? -0.6 * s : 0.05 * s);
         const legal = interactive && legalHexSet.has(hex.id);
         return (
           <g
@@ -300,18 +304,20 @@ function HexLayer({
           >
             <path d={hexPath(hex.x, hex.y, s)} fill={fill} className="hex-fill" />
             <path d={hexPath(hex.x, hex.y, s * 0.86)} fill="none" className="hex-shade" />
-            <g
-              transform={`translate(${round(hex.x - 12 * iconScale)} ${round(iconY - 12 * iconScale)}) scale(${round(iconScale)})`}
-              className={`terrain-glyph terrain-${hex.terrain}`}
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={1.5}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              opacity={isRobber ? 0.35 : 0.78}
-              aria-hidden="true"
-            >
-              <ResourceShape resource={hex.terrain} />
+            <g className="terrain-badge-group" aria-hidden="true">
+              <circle cx={round(hex.x)} cy={round(iconY)} r={round(0.2 * s)} className="terrain-badge" />
+              <g
+                transform={`translate(${round(hex.x - 12 * iconScale)} ${round(iconY - 12 * iconScale)}) scale(${round(iconScale)})`}
+                className={`terrain-glyph terrain-${hex.terrain}`}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.7}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                opacity={isRobber ? 0.45 : 1}
+              >
+                <ResourceShape resource={hex.terrain} />
+              </g>
             </g>
             {hex.token !== null ? (
               <NumberToken x={hex.x} y={hex.y} token={hex.token} s={s} flash={flash} />

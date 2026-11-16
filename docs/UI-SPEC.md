@@ -98,7 +98,7 @@ takes 62% of the area and its frame is the brightest surface on screen.
 | center column | 888 x 844 | 1008 x 640 |
 | board frame | 872 x 520 inside 8px gutters | 1008 x 388 |
 | action bar | 872 x 64 | 1008 x 60 |
-| hand dock | 872 x 236 | 1008 x 168 |
+| hand dock | 872 x 152 | 1008 x 116 |
 | right rail | 304 x 844 | drawer 380 x 716, closed |
 
 Collapses on tablet, in order:
@@ -174,7 +174,7 @@ on a sea gradient with a brass border, secondary parchment. No blur over 24px,
 no colored glow except focus rings and award seals.
 
 Icons: one 24x24 viewBox, 1.6px stroke, round caps, at most one filled shape.
-Resources read by silhouette at 14px: wood is a split log with end rings, brick
+Resources read by silhouette at 14 to 18px: wood is a split log with end rings, brick
 a 2:1 block with an offset mortar line, sheep a head-and-back profile with a
 curl, wheat three tied stalks, ore a faceted rock with two facets, desert a dune
 arc with a sun dot. Costs always render pips plus icon, never a bare numeral.
@@ -216,12 +216,14 @@ object identity changes. The SVG is 100% inside the board frame, no fixed px.
 Layer order: sea mat, port tags and rope lines, hex fills, terrain icons, number
 tokens, roads, robber, buildings, legal highlights, hover ring, dice tray.
 
-Terrain icons sit at `0.5*S` tall in the hex's lower third, single color at 78%,
-raised `0.12*S` when a token is present. Built from primitives: wood is two
-1.2px trunk lines with two canopy triangles, brick three stacked rounded rects
-at 2:1, sheep one ellipse body plus a circle head and two leg lines, wheat three
-vertical lines with leaf ticks and a band, ore one pentagon with two facet lines,
-desert one dune arc plus a circle sun. Six shapes, six silhouettes, no drawing.
+Terrain icons sit in a parchment badge of radius `0.2*S`, centred `0.6*S` above
+the hex centre on token hexes, so the number token never covers them. The glyph
+itself is `0.28*S` tall, single ink color at full opacity. On a tokenless hex the
+badge sits at the centre. Built from primitives: wood is two trunk lines with two
+canopy triangles, brick three stacked rounded rects at 2:1, sheep one ellipse
+body plus a circle head and two leg lines, wheat three vertical lines with leaf
+ticks and a band, ore one pentagon with two facet lines, desert one dune arc plus
+a circle sun. Six shapes, six silhouettes, no drawing.
 
 Number tokens: numeral at `0.34*S`, sans 700, ink-900, pips `6 - abs(7 - n)`.
 Emphasis for 6 and 8: 2px gold-600 outer ring, 1px error inner ring, numeral at
@@ -234,7 +236,7 @@ or "You do not own this port."
 
 Robber: hooded marker at `hex.x, hex.y - 0.10*S`. Its hex gets a hatch overlay
 `repeating-linear-gradient(45deg, rgba(36,29,18,.30) 0 3px, transparent 3px 7px)`
-and terrain at 35%. Drift `translateY` 0 to -3px, 4s, infinite.
+and its terrain icon dimmed to 45%. Drift `translateY` 0 to -3px, 4s, infinite.
 
 Roads stroke `--pN` over a 3px ink-900 casing at 45% so they read on any
 terrain. Patterns double as the color-blind cue:
@@ -303,30 +305,26 @@ cast upward. On desktop the cards fan inside it like filed ledger cards. At
 1180px and below the fan is replaced by a flat scrolling row of compact cards,
 so nothing tilts out of the dock or into the play strip.
 
-Card face, 152x212 desktop, 132x184 tablet:
+Hand cards are compact ledger slips: name, price while the card is in the
+market, and rules text. They are 152x100 on desktop, 124x70 on tablet, and
+110x70 on phone, which is about half the height of the original card face.
 
 ```
 +------------------------------+
-| Salvage Yard       W W W     |  name 13.5px serif, ellipsis, cost pips right
+| Salvage Yard       W W W     |  name 13px serif, ellipsis; cost pips right
 +------------------------------+
-|          hex icon            |  46px hex plate, resource tint 18%
-|  Gain 2 Brick and 1 Ore.     |  11.5px/1.4 ink-700, max 4 lines
-|  ~ rope rule ~               |  9.5px italic ink-500, max 2 lines
-|  Salt-eaten timber, still    |
-|  worth the walk.             |
-+------------------------------+
-| ECONOMY           seal 2     |  tag 8.5px caps, VP seal if any
+| Gain 2 Brick and 1 Ore.      |  11px/1.3 ink-700, clamped to 4 lines
+| ...                          |
 +------------------------------+
 ```
 
-The name is `CardDef.name` verbatim, one line, ellipsis, never wrapped. Cost
-shows `n` pips in the resource color plus a 10px icon. Charters show a grouped
-multiset in sans 10px. Starting cards show a blank ruled line. The icon plate is
-a 46px pointy-top hex at 1.4px gold-600 filled with the card's primary resource
-at 18%. Rules text is `CardDef.text` word for word, `text-wrap: pretty`. Flavor
-is `CardDef.flavor`; charters use "Counts from the moment you buy it." The
-footer shows the first tag in caps at 8.5px with `.14em` tracking, and VP cards
-get an 18px wax seal reading "1" or "2".
+The name is `CardDef.name` verbatim, one line, ellipsis. Cost shows `n` pips in
+the resource color plus a 10px icon. Rules text is `CardDef.text` word for word,
+clamped to four lines on desktop and two on tablet and phone. A card that needs
+a target keeps its 16px gold "?" badge in the header. The hex plate, flavor,
+footer tag, and charter stamp are inspector-only: at this height they would eat
+the space the rules text needs. Charters still score from purchase and still
+have no play affordance.
 
 Fan math, `n` cards, dock width `W`:
 
@@ -344,9 +342,9 @@ left 88px clickable. Past nine, a "Spread" toggle switches to a scrolling row.
 At 1180px and below the row is always flat and scrolls sideways, and the spread
 toggle is hidden. The compact face keeps the name (up to two lines) and the
 rules text and drops the hex plate, cost pips, flavor, footer tag, and charter
-stamp. Tablet cards are 124x138; phone cards are 110x136. Cards of the same type
-carry no count marker; the deck and discard counters already say how many
-copies exist.
+stamp and cost. Tablet cards are 124x70; phone cards are 110x70. Cards of the
+same type carry no count marker; the deck and discard counters already say how
+many copies exist.
 
 Interaction:
 
@@ -681,11 +679,13 @@ their hex. Brass hairlines are decoration and never the only boundary. Seat
 colors are never the only identifier, see the road and building patterns in
 section 4.
 
-Resource color-blind plan: distinct silhouettes at 14px, cost as pips plus icon,
+Resource color-blind plan: distinct silhouettes at 14 to 18px, cost as pips plus icon,
 counts as icon plus numeral, terrain icons in every hex, and a "Letter labels"
 setting adding W / B / S / H / O at 10px under each icon. The palette also
 differs in lightness, not hue alone: wood 32%, brick 36%, sheep 52%, wheat 58%,
-ore 38%.
+ore 38%. The player resource rows tint each icon with its resource color, using
+ brighter variants on the dark seat ribbon, while the silhouettes stay the
+color-blind cue.
 
 Focus: 2px gold-300 outline, 2px offset, plus a 1px ink-900 contrast ring, on
 both parchment and sea. Focus never moves on its own except into a new modal. A
@@ -802,14 +802,14 @@ breakpoint at `max-width: 640px`, plus a short-viewport guard at
   `Leave`. Room code is hidden; it stays in the lobby and share link.
 - Seat ribbon becomes a horizontal scroll row of 148px chips. Four chips do
   not fit on a 320 to 430px screen, and that is fine.
-- Hand becomes a scrolling row of 110x126 cards. The fan needs more width than
+- Hand becomes a scrolling row of 110x70 cards. The fan needs more width than
   a phone has, and clipped cards were worse than a row. The spread toggle is
-  hidden on phones because the row is always on. Card faces keep the name,
-  cost, hex plate, rules text, and tag; flavor is hidden.
+  hidden on phones because the row is always on. Card faces keep the name and
+  rules text; cost, plate, flavor, and tag are hidden.
 - Board frame keeps the full island. At 390px the SVG is 368x490; at 320px it
   is 298 wide. No horizontal scrolling anywhere.
 - Short landscape hides the seat ribbon and the play-area strip, shrinks the
-  hand to 92x104 cards, and gives the board whatever height remains. It is
+  hand to 92x68 cards, and gives the board whatever height remains. It is
   playable, not pretty. Portrait is the supported phone orientation.
 - `100dvh`, `viewport-fit=cover`, safe-area padding on the header and hand
   dock, `touch-action: manipulation` on controls, `overscroll-behavior: none`.
@@ -839,12 +839,12 @@ below 760px the victim picker stacks: prompt, then a chip row that scrolls
 sideways with a right-edge fade when it overflows, then the commit buttons on
 their own line. The button never depends on a scroll.
 
-Card faces on a phone now carry the name and the rules text and nothing else:
-no hex plate, no cost pips (cards are free to play, so that number is the market
-price), no dashed flap, no flavor, no tag row. Long names wrap to two lines
-instead of ellipsing. The rules text clamps at seven lines on a phone and five
-on tablet and desktop, which is what the longest card in the deck needs; four
-was clipping "Wrecker's Lamp" mid-sentence.
+Hand cards on every screen now carry the name and the rules text, plus the price
+on desktop: no hex plate, no flavor, no tag row. Tablet and phone also drop the
+cost pips (cards are free to play, so that number is the market price). Long
+names wrap to two lines on the small layouts instead of ellipsing. The rules
+text clamps at four lines on desktop and two on tablet and phone; the inspector
+holds the full sentence.
 
 And one WebKit trap: `text-wrap: pretty` on the clamped card text broke the
 text into stub lines about half the box width, so a card that needed seven

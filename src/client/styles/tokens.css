@@ -20,6 +20,13 @@
   --sheep: #7d8f56;
   --wheat: #b58a3c;
   --ore: #5d626b;
+  /* Readable on the dark seat ribbon. The board colors are too close to the
+     ink background for a 15px glyph. */
+  --wood-bright: #a9ca97;
+  --brick-bright: #e6a98d;
+  --sheep-bright: #d7e0af;
+  --wheat-bright: #efd6a0;
+  --ore-bright: #c9ced8;
   --desert: #c9b287;
   --error: #9a3f2c;
   --ok: #3f7a52;

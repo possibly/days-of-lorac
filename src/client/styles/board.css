@@ -14,8 +14,18 @@
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
 }
+.terrain-badge-group {
+  pointer-events: none;
+}
+.terrain-badge {
+  fill: rgba(246, 237, 216, 0.9);
+  stroke: #a07f3d;
+  stroke-opacity: 0.55;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
 .terrain-glyph {
-  color: #231c10;
+  color: #322817;
   pointer-events: none;
 }
 .hex-robber .hex-fill { filter: saturate(0.55) brightness(0.8); }

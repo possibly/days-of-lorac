@@ -40,7 +40,7 @@ export function MyResources({ view, letters }: MyResourcesProps): JSX.Element | 
               className={`my-res-cell${count === 0 ? ' is-zero' : ''}`}
               title={`${RESOURCE_NAMES[resource]}: ${count}`}
             >
-              <ResourceIcon resource={resource} size={14} letters={letters} />
+              <ResourceIcon resource={resource} size={18} letters={letters} />
               <span className="my-res-count">{count}</span>
             </span>
           );

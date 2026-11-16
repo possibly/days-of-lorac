@@ -388,7 +388,7 @@
 .my-res-cell {
   flex: 1;
   min-width: 0;
-  height: 24px;
+  height: 30px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -405,6 +405,11 @@
 .my-res-cell.is-zero { color: var(--ink-500); }
 .my-res-cell.is-zero .res-icon { opacity: 0.35; }
 .my-res-cell .res-icon { color: currentColor; }
+.my-res-cell .res-icon.res-wood { color: var(--wood); }
+.my-res-cell .res-icon.res-brick { color: var(--brick); }
+.my-res-cell .res-icon.res-sheep { color: var(--sheep); }
+.my-res-cell .res-icon.res-wheat { color: var(--wheat); }
+.my-res-cell .res-icon.res-ore { color: var(--ore); }
 .my-res-count { line-height: 1; }
 .my-res-total {
   flex: none;
@@ -426,6 +431,6 @@
 @media (max-width: 640px) {
   .my-res { gap: 5px; padding: 7px 9px 6px; }
   .my-res-label { font-size: 8px; letter-spacing: 0.06em; }
-  .my-res-cell { height: 26px; font-size: 11.5px; }
+  .my-res-cell { height: 32px; font-size: 11.5px; }
   .my-res-total { min-width: 38px; padding-left: 5px; font-size: 12px; }
 }

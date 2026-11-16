@@ -87,15 +87,18 @@ export function CardFace({ card, def, cost, playable, needsChoice, selected, let
       >
         <header className="card-head">
           <span className="card-name" title={def.name}>{def.name}</span>
-          <span className="card-cost" aria-label={costs.length > 0 ? costs.map((c) => `${c.count} ${c.resource}`).join(', ') : 'no cost'}>
-            {costs.length === 0 ? <span className="cost-rule" aria-hidden="true" /> : oneEach ? (
-              <span className="cost-each" title={costs.map((cost) => `1 ${cost.resource}`).join(', ')}>1 each</span>
-            ) : costs.map(({ resource, count }) => (
-              <span key={resource} className={`cost-pip cost-${resource}`} title={`${count} ${resource}`}>
-                <span className="pip-n">{count}</span>
-                <ResourceIcon resource={resource} size={10} />
-              </span>
-            ))}
+          <span className="card-head-side">
+            {needsChoice ? <span className="choice-badge" title="Pick a target after you play this">?</span> : null}
+            <span className="card-cost" aria-label={costs.length > 0 ? costs.map((c) => `${c.count} ${c.resource}`).join(', ') : 'no cost'}>
+              {costs.length === 0 ? <span className="cost-rule" aria-hidden="true" /> : oneEach ? (
+                <span className="cost-each" title={costs.map((cost) => `1 ${cost.resource}`).join(', ')}>1 each</span>
+              ) : costs.map(({ resource, count }) => (
+                <span key={resource} className={`cost-pip cost-${resource}`} title={`${count} ${resource}`}>
+                  <span className="pip-n">{count}</span>
+                  <ResourceIcon resource={resource} size={10} />
+                </span>
+              ))}
+            </span>
           </span>
         </header>
 
@@ -115,7 +118,6 @@ export function CardFace({ card, def, cost, playable, needsChoice, selected, let
 
         <footer className="card-foot">
           <span className="card-tag">{def.tags[0] ?? 'card'}</span>
-          {needsChoice ? <span className="choice-badge" title="Pick a target after you play this">?</span> : null}
         </footer>
 
         {!playable && def.kind === 'charter' ? <span className="charter-stamp" aria-hidden="true">deed</span> : null}
