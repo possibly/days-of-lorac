@@ -234,7 +234,7 @@ export default function App(): JSX.Element {
         pilotSeats={fixtureMode ? [] : snapshot.pilotSeats}
         chats={fixtureMode ? [] : snapshot.chats}
         onChat={(text) => (fixtureMode ? undefined : client.chat(text))}
-        roomCode={fixtureMode ? 'TEST' : snapshot.roomCode}
+        roomCode={fixtureMode ? 'TEST' : peerState.relayCode ?? snapshot.roomCode}
         soundOn={soundOn}
         letters={letters}
         isHost={isHost}

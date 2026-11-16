@@ -50,6 +50,10 @@ export function LobbyScreen({
   const me = lobby.players.find((player) => player.seat === you);
   const peerState = usePeer();
   const peerHosting = peerState.role === 'host';
+  const peerTable = peerState.role !== 'idle';
+  // Guests type the relay code, not the room code inside the host tab. Showing
+  // the room code here would put two different four-letter codes on one screen.
+  const joinCode = peerState.relayCode ?? (peerTable ? null : lobby.code);
   const isHost = lobby.hostSeat === you;
   const openSeats = Math.max(0, lobby.config.maxPlayers - lobby.players.length);
   // The host's ready flag is implicit: the host opens the table, so only the
@@ -70,7 +74,10 @@ export function LobbyScreen({
       <header className="lobby-head">
         <div>
           <p className="eyebrow">Guild table</p>
-          <h1 className="panel-title">Room <span className="room-code big-code">{lobby.code}</span></h1>
+          <h1 className="panel-title">
+            {peerTable ? 'Join code' : 'Room'}{' '}
+            <span className="room-code big-code">{joinCode ?? '····'}</span>
+          </h1>
           <p className="lobby-sub">Race to {lobby.targetVp} · {lobby.config.maxPlayers} seats · fill difficulty {lobby.config.difficulty}</p>
           <p className="lobby-sub lobby-map-line">{describeMap(lobby.config.map)}</p>
           <p className="lobby-sub lobby-map-line">{describeCards(lobby.config.cards)}</p>

@@ -38,7 +38,9 @@ every browser would need the full state to compute its own view.
    that is the usual lobby and game.
 
 The room code inside the host tab travels with the offer, so the guest does not
-have to type it separately.
+have to type it separately. It is an internal id and never appears in the UI.
+The four-letter code on the lobby header, the invite card, and the game header
+is the relay code, which is the one guests type.
 
 ## What can go wrong
 
