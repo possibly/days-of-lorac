@@ -10,7 +10,9 @@ import type { BoardMode, BoardTarget, Floater } from '../board/BoardSvg';
 import { indexBoard } from '../board/geometry';
 import { HandDock } from '../hand/HandDock';
 import { MarketTab } from '../market/MarketTab';
-import { LedgerRail, SeatRibbon } from '../players/LedgerRail';
+import { LedgerRail } from '../players/LedgerRail';
+import { ActivePlayerBar } from '../players/ActivePlayerBar';
+import { PlayersTab } from '../players/PlayersTab';
 import { TradeTab } from '../trade/TradeTab';
 import { LogTab } from '../trade/LogTab';
 import { DiscardModal } from '../modals/DiscardModal';
@@ -20,7 +22,7 @@ import { Button } from '../ui/Button';
 import { GuildSeal } from '../ui/icons';
 import { playCue } from '../sound/audio';
 
-type RailTab = 'market' | 'trade' | 'log';
+type RailTab = 'market' | 'trade' | 'log' | 'players';
 
 export interface GameScreenProps {
   view: GameView;
@@ -79,7 +81,6 @@ export function GameScreen({
   const [railTab, setRailTab] = useState<RailTab>('market');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
-  const [expandedSeat, setExpandedSeat] = useState<number | null>(null);
   const [floaters, setFloaters] = useState<Floater[]>([]);
   const [flashHexes, setFlashHexes] = useState<string[]>([]);
   const [boughtStub, setBoughtStub] = useState<{ name: string; open: boolean } | null>(null);
@@ -519,6 +520,12 @@ export function GameScreen({
         setDrawerOpen(true);
         return;
       }
+      if (key === 'p' || key === 'P') {
+        event.preventDefault();
+        setRailTab('players');
+        setDrawerOpen(true);
+        return;
+      }
       if (key === ' ' && (pending || selection)) {
         event.preventDefault();
         if (view.phase === 'robber' || pending?.type === 'card') confirmRobber();
@@ -600,14 +607,16 @@ export function GameScreen({
           onBankTrade={(option: BankTradeOption) => send({ type: 'bankTrade', give: option.give, receive: option.receive, count: option.count })}
         />
       )
-      : (
-        <LogTab
-          view={view}
-          chats={chats}
-          connected={connected}
-          onChat={onChat}
-        />
-      );
+      : railTab === 'players'
+        ? <PlayersTab view={view} letters={letters} pilotSeats={pilotSeats} reshufflingSeats={reshufflingSeats} />
+        : (
+          <LogTab
+            view={view}
+            chats={chats}
+            connected={connected}
+            onChat={onChat}
+          />
+        );
 
 
   return (
@@ -661,8 +670,6 @@ export function GameScreen({
         />
 
         <main className="center-column">
-          <SeatRibbon view={view} pilotSeats={pilotSeats} expanded={expandedSeat} onExpand={setExpandedSeat} letters={letters} reshufflingSeats={reshufflingSeats} />
-
           <div className="board-wrap">
             <BoardFrame
               view={view}
@@ -687,6 +694,8 @@ export function GameScreen({
             ) : null}
           </div>
 
+          <ActivePlayerBar view={view} letters={letters} />
+
           <ActionBar
             view={view}
             pending={pending}
@@ -698,6 +707,7 @@ export function GameScreen({
             onEndTurn={() => send({ type: 'endTurn' })}
             onOpenTrade={() => openRail('trade')}
             onOpenMarket={() => openRail('market')}
+            onOpenPlayers={() => openRail('players')}
             onOpenBuild={() => setBuildOpen(true)}
             onCloseBuild={() => setBuildOpen(false)}
             onPickBuild={(kind) => {
@@ -738,13 +748,14 @@ export function GameScreen({
           />
         </main>
 
-        <aside className={`supply-rail${drawerOpen ? ' is-open' : ''}`} aria-label="Market, trade, and log">
-          <div className="rail-tabs" role="tablist" aria-label="Supply rail">
+        <aside className={`supply-rail${drawerOpen ? ' is-open' : ''}`} aria-label="Market, trade, log, and players">
+          <div className="rail-tabs" role="tablist" aria-label="Supply and players">
             <button type="button" role="tab" aria-selected={railTab === 'market'} className={`rail-tab${railTab === 'market' ? ' is-on' : ''}`} onClick={() => setRailTab('market')}>Market</button>
             <button type="button" role="tab" aria-selected={railTab === 'trade'} className={`rail-tab${railTab === 'trade' ? ' is-on' : ''}`} onClick={() => setRailTab('trade')}>
               Trade{offer && offer.from !== view.you ? <span className="tab-dot" aria-label="incoming offer" /> : null}
             </button>
             <button type="button" role="tab" aria-selected={railTab === 'log'} className={`rail-tab${railTab === 'log' ? ' is-on' : ''}`} onClick={() => setRailTab('log')}>Log</button>
+            <button type="button" role="tab" aria-selected={railTab === 'players'} className={`rail-tab${railTab === 'players' ? ' is-on' : ''}`} onClick={() => setRailTab('players')}>Players</button>
             <button type="button" className="rail-close" onClick={() => setDrawerOpen(false)} aria-label="Close supply drawer">×</button>
           </div>
           <div className="rail-content">{rail}</div>

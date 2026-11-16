@@ -18,6 +18,7 @@ interface ActionBarProps {
   onEndTurn: () => void;
   onOpenTrade: () => void;
   onOpenMarket: () => void;
+  onOpenPlayers: () => void;
   onOpenBuild: () => void;
   onCloseBuild: () => void;
   onPickBuild: (kind: 'road' | 'settlement' | 'city') => void;
@@ -83,6 +84,10 @@ export function ActionBar(props: ActionBarProps): JSX.Element {
     </Button>
   );
 
+  const playersButton = (
+    <Button variant="ghost" onClick={props.onOpenPlayers}>Players</Button>
+  );
+
   // ----- game over ---------------------------------------------------------
   if (view.phase === 'gameOver') {
     const winner = view.players.find((player) => player.seat === view.winner);
@@ -91,6 +96,7 @@ export function ActionBar(props: ActionBarProps): JSX.Element {
         <p className="prompt-line">{winner ? `${winner.name} wins at ${winner.vp} points.` : 'The game is over.'}</p>
         <div className="action-buttons">
           <Button variant="primary" onClick={props.onSeeResult}>See the result</Button>
+          {playersButton}
         </div>
       </div>
     );
@@ -210,6 +216,7 @@ export function ActionBar(props: ActionBarProps): JSX.Element {
           ) : (
             <Button variant="primary" disabled reason="Pick a hex first.">Move robber</Button>
           )}
+          {playersButton}
         </div>
       </div>
     );
@@ -277,6 +284,7 @@ export function ActionBar(props: ActionBarProps): JSX.Element {
               );
             })}
           </div>
+          {playersButton}
         </div>
       </div>
     );
@@ -291,6 +299,7 @@ export function ActionBar(props: ActionBarProps): JSX.Element {
         <Button variant="primary" onClick={props.onEndTurn} disabled={!legal.canEndTurn || lost} reason={lost ? 'Connection lost. Reconnecting.' : !legal.canEndTurn ? 'You cannot end the turn right now.' : null}>
           End turn
         </Button>
+        {playersButton}
       </div>
     </div>
   );
@@ -299,7 +308,7 @@ export function ActionBar(props: ActionBarProps): JSX.Element {
     return (
       <div className={`action-bar${className ? ` ${className}` : ''}`}>
         <p className="prompt-line">{promptText}</p>
-        <div className="action-buttons">{buttons}</div>
+        <div className="action-buttons">{buttons}{playersButton}</div>
       </div>
     );
   }

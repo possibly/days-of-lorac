@@ -94,7 +94,7 @@ takes 62% of the area and its frame is the brightest surface on screen.
 | Region | 1440x900 | 1024x768 |
 | --- | --- | --- |
 | header | 1440 x 56 | 1024 x 52 |
-| left rail | 248 x 844 | seat ribbon 1024 x 76 |
+| left rail | 248 x 844 | Players drawer, closed |
 | center column | 888 x 844 | 1008 x 640 |
 | board frame | 872 x 520 inside 8px gutters | 1008 x 388 |
 | action bar | 872 x 64 | 1008 x 60 |
@@ -103,16 +103,14 @@ takes 62% of the area and its frame is the brightest surface on screen.
 
 Collapses on tablet, in order:
 
-1. Ledger becomes a ribbon of four 236x64 chips under the header, keeping seat
-   coin, name, `7/14`, the five resource counts, and a footer row: status badges
-   (BOT, OFF, PILOT) on the left, the two 2-VP award tracks on the right as a
-   pennant plus the number that decides the award (route length, renown), gold
-   when that seat holds it. Tap expands the full panel over the rail slot, tap
-   again closes.
+1. Ledger rail hides. The full stat boxes move to the Players tab of the right
+   drawer, opened by the Players button in the action bar. The active-player bar
+   above the action bar keeps the current seat's five resource counts, route,
+   and renown on screen without opening anything.
 2. Right rail becomes a drawer over the board with a 42% ink scrim, opened by
-   "Buy card", the market tab, or the trade tab. Closed by scrim, Esc, or the
-   chevron.
-3. Hand cards use the compact face from section 5 in a flat scrolling row, 124x138.
+   "Buy card", the market, trade, log, or Players tab. Closed by scrim, Esc, or
+   the chevron.
+3. Hand cards use the compact face from section 5 in a flat scrolling row, 124x70.
 4. Port tags drop the ship ornament and keep icon plus rate.
 5. Header drops the wordmark text, keeps the seal as a home button, moves
    "Rules" into an overflow menu.
@@ -454,7 +452,10 @@ affordable yet. You need 2 resource types within reach."
 ## 7. Player panels
 
 Left rail, seat order top to bottom, 224x168 each with an 8px gap. Your panel is
-marked, not moved.
+marked, not moved. On tablet and phone the rail is hidden; the Players button in
+the action bar opens the same panels in the supply drawer. The active-player bar
+above the action bar carries that seat's resources, route, and renown, so the
+drawer is not needed for turn decisions.
 
 ```
 +--------------------------------+
@@ -491,7 +492,7 @@ marked, not moved.
 8. Deck line in mono 10.5px: `deck 6 · discard 3 · hand 5 · play 2`. Tooltip
    "Deck and discard counts are public. Their contents are not."
 9. Award pennants: a 14px gold pennant beside the award it belongs to, stamped
-   over 240ms on change. The same pennants ride in the compact chip's footer.
+   over 240ms on change. The same pennants ride in the active-player strip.
 
 Current turn: the active panel gets a 3px gold-400 left edge, a gold-300 inner
 hairline, a 14% warm wash, and a corner pennant. Others drop to 90%. The header
@@ -506,9 +507,10 @@ Target VP lives in three places, all from `view.targetVp`: the header chip
 
 64px strip between board and hand. Left 60% is the prompt, right 40% is a right
 aligned button cluster. Primary is the sea gradient, others parchment. Targeting
-states keep one Cancel button. The free-action state carries four (Build, Trade,
-Buy, End turn), and the Build picker stacks its chips under the prompt as a
-second row rather than squeezing the prompt.
+states keep one Cancel button. The free-action state carries five (Build, Trade,
+Buy, End turn, Players), and the Build picker stacks its chips under the prompt
+as a second row rather than squeezing the prompt. Players sits at the right
+edge in every state and opens the Players tab of the supply drawer.
 
 | State | Prompt | Buttons |
 | --- | --- | --- |
@@ -684,7 +686,7 @@ counts as icon plus numeral, terrain icons in every hex, and a "Letter labels"
 setting adding W / B / S / H / O at 10px under each icon. The palette also
 differs in lightness, not hue alone: wood 32%, brick 36%, sheep 52%, wheat 58%,
 ore 38%. The player resource rows tint each icon with its resource color, using
- brighter variants on the dark seat ribbon, while the silhouettes stay the
+ brighter variants on the dark active-player bar, while the silhouettes stay the
 color-blind cue.
 
 Focus: 2px gold-300 outline, 2px offset, plus a 1px ink-900 contrast ring, on
@@ -727,11 +729,11 @@ App
 │  │  │  ├─ BoardSvg → PortLayer, HexLayer, RoadLayer, RobberLayer,
 │  │  │  │             BuildingLayer, TargetLayer
 │  │  │  └─ TooltipLayer
+│  │  ├─ ActivePlayerBar → resources, route, renown
 │  │  ├─ ActionBar → PromptLine, VictimChips, ButtonCluster
 │  │  ├─ HandDock → PlayAreaStrip, CardFace x n, DrawCounters
-│  │  ├─ LedgerRail → PlayerPanel x n, CardInspector
-│  │  ├─ SupplyRail → MarketTab, TradeTab, LogTab
-│  │  ├─ SeatRibbon  tablet only
+│  │  ├─ LedgerRail → PlayerPanel x n, CardInspector   desktop only
+│  │  ├─ SupplyRail → MarketTab, TradeTab, LogTab, PlayersTab
 │  │  └─ Toasts
 │  ├─ GameOverSheet
 │  └─ RulesSheet
@@ -795,22 +797,23 @@ breakpoint at `max-width: 640px`, plus a short-viewport guard at
 `max-height: 520px` for landscape.
 
 - The center column must declare `grid-template-columns: minmax(0, 1fr)`.
-  Without it the seat ribbon's max-content width widens the grid and pushes
+  Without it a long player name in the active strip widens the grid and pushes
   the board off the right edge, which is exactly what happened on iOS Safari
   before this fix.
 - Header swaps long labels for `T3 · you`, `to 14`, `Aa`, `Snd`, `Rules`,
   `Leave`. Room code is hidden; it stays in the lobby and share link.
-- Seat ribbon becomes a horizontal scroll row of 148px chips. Four chips do
-  not fit on a 320 to 430px screen, and that is fine.
+- The top seat ribbon is gone. The active-player strip above the action bar
+  keeps the current seat's resources, route, and renown on screen, and the
+  Players button opens the full stat boxes in the supply drawer.
 - Hand becomes a scrolling row of 110x70 cards. The fan needs more width than
   a phone has, and clipped cards were worse than a row. The spread toggle is
   hidden on phones because the row is always on. Card faces keep the name and
   rules text; cost, plate, flavor, and tag are hidden.
 - Board frame keeps the full island. At 390px the SVG is 368x490; at 320px it
   is 298 wide. No horizontal scrolling anywhere.
-- Short landscape hides the seat ribbon and the play-area strip, shrinks the
-  hand to 92x68 cards, and gives the board whatever height remains. It is
-  playable, not pretty. Portrait is the supported phone orientation.
+- Short landscape keeps a 32px active-player strip, hides the play-area strip,
+  shrinks the hand to 92x68 cards, and gives the board whatever height remains.
+  It is playable, not pretty. Portrait is the supported phone orientation.
 - `100dvh`, `viewport-fit=cover`, safe-area padding on the header and hand
   dock, `touch-action: manipulation` on controls, `overscroll-behavior: none`.
 

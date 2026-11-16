@@ -13,8 +13,6 @@ interface PlayerPanelProps {
   isPilot: boolean;
   /** This seat's discard just shuffled back into its deck. */
   reshuffling?: boolean;
-  compact?: boolean;
-  onExpand?: () => void;
   letters?: boolean;
 }
 
@@ -26,7 +24,7 @@ const RESOURCE_LABEL: Record<Resource, string> = {
   ore: 'Ore',
 };
 
-export function PlayerPanel({ view, player, isCurrent, isYou, isPilot, reshuffling, compact, onExpand, letters }: PlayerPanelProps): JSX.Element {
+export function PlayerPanel({ view, player, isCurrent, isYou, isPilot, reshuffling, letters }: PlayerPanelProps): JSX.Element {
   const color = seatColor(player.seat);
   const target = view.targetVp;
   const vp = player.vp;
@@ -75,60 +73,6 @@ export function PlayerPanel({ view, player, isCurrent, isYou, isPilot, reshuffli
   // Offline only when a human dropped and nobody is flying the seat.
   const offline = disconnected && !player.isBot && !isPilot;
   const filled = Math.min(segments, Math.round(pct * segments));
-
-  if (compact) {
-    return (
-      <button
-        type="button"
-        className={`seat-chip${isCurrent ? ' is-current' : ''}${isYou ? ' is-you' : ''}${reshuffling ? ' is-reshuffling' : ''}`}
-        style={{ borderLeftColor: color }}
-        onClick={onExpand}
-        aria-label={`${player.name}${isYou ? ' (you)' : ''}, ${vp} of ${target} victory points, renown ${player.renown} of ${LARGEST_EXPEDITION_MIN}, route ${routeLength}.${holdsRoute ? ' Holds Longest Route.' : ''}${holdsExpedition ? ' Holds Largest Expedition.' : ''} Expand panel.`}
-      >
-        <SeatCoin seat={player.seat} size={22} />
-        <span className="seat-chip-name">{player.name}{isYou ? ' · you' : ''}</span>
-        <span className="seat-chip-vp">{vp}/{target}</span>
-        <span className="seat-chip-res">
-          {RESOURCES.map((resource) => (
-            <span key={resource} className={`mini-res${player.resources[resource] === 0 ? ' is-zero' : ''}`}>
-              <ResourceIcon resource={resource} size={14} />
-              <span>{player.resources[resource]}</span>
-            </span>
-          ))}
-        </span>
-        {/* Footer row: status badges on the left, the two 2-VP award tracks on
-            the right. Gold means this seat holds that award, so the race reads
-            without opening a panel. */}
-        <span className="seat-chip-foot">
-          <span className="seat-chip-badges">
-            {player.isBot ? <span className="badge badge-bot">BOT</span> : null}
-            {offline ? <span className="badge badge-offline">OFF</span> : null}
-            {isPilot ? <span className="badge badge-pilot">PILOT</span> : null}
-          </span>
-          <span className="seat-awards">
-            <span
-              className={`mini-award${holdsRoute ? ' is-held' : ''}`}
-              title={holdsRoute
-                ? `Longest Route ${routeLength}. Holds the award, +${AWARD_BONUS} VP.`
-                : `Longest Route ${routeLength}. Needs ${LONGEST_ROAD_MIN} and the most at the table for +${AWARD_BONUS} VP.`}
-            >
-              <Pennant kind="route" />
-              <span>{routeLength}</span>
-            </span>
-            <span
-              className={`mini-award${holdsExpedition ? ' is-held' : ''}`}
-              title={holdsExpedition
-                ? `Renown ${player.renown}. Holds Largest Expedition, +${AWARD_BONUS} VP.`
-                : `Renown ${player.renown} of ${LARGEST_EXPEDITION_MIN} for Largest Expedition, +${AWARD_BONUS} VP.`}
-            >
-              <Pennant kind="expedition" />
-              <span>{player.renown}</span>
-            </span>
-          </span>
-        </span>
-      </button>
-    );
-  }
 
   return (
     <section className={`player-panel${isCurrent ? ' is-current' : ''}${isYou ? ' is-you' : ''}`} style={{ '--seat-color': color } as React.CSSProperties} aria-label={`${player.name}${isYou ? ', you' : ''}. ${vp} of ${target} victory points.`}>
