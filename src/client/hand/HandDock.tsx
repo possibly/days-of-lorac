@@ -267,7 +267,7 @@ export function HandDock({ view, playableIids, selectedIid, onPlay, onUnplay, on
               {body}
             </button>
           ) : (
-            <span key={card.iid} className="play-stub" data-play-iid={card.iid} title={`${def.name}: ${def.text} Only the last card played can be taken back.`}>
+            <span key={card.iid} className="play-stub" data-play-iid={card.iid} title={`${def.name}: ${def.text}`}>
               {body}
             </span>
           );
