@@ -107,6 +107,8 @@ describe('bot policy: full games', () => {
   // 18 games: two per (player count, difficulty) pair.
   expect(cases.length).toBe(18);
 
+  // Eighteen full games. Fast locally, over the default 5s on a two-core CI
+  // runner, so the budget is explicit rather than flaky.
   it('plays every difficulty to a finish without a rejected action or a stall', () => {
     const results = cases.map(({ playerCount, difficulty }, index) =>
       runGame(playerCount, 100 + index, new Array<BotDifficulty>(playerCount).fill(difficulty), 3000),
@@ -123,7 +125,7 @@ describe('bot policy: full games', () => {
 
     const winners = new Set(results.map((result) => result.winner));
     expect(winners.size).toBeGreaterThan(1);
-  });
+  }, 30_000);
 
   it('only ever emits actions the engine accepts, in every phase', () => {
     for (const playerCount of [2, 3, 4]) {
