@@ -64,6 +64,11 @@ export function BoardSvg({
   const hoverPoint = (event: React.PointerEvent): { x: number; y: number } => ({ x: event.clientX, y: event.clientY });
 
   const pick = (target: BoardTarget) => {
+    // Drop the hover state before the action leaves. Otherwise a tooltip from
+    // the corner or hex just clicked can hang over the board until the next
+    // view arrives.
+    setHover(null);
+    onHover(null, null);
     onSelect(target);
   };
 
@@ -587,8 +592,10 @@ function TargetLayer({
                 }}
               >
                 <path d={d} className="target-edge-hit" strokeWidth={round(0.6 * s)} />
-                <path d={d} className="target-edge-ring" strokeWidth={round(0.13 * s)} />
-                {isHover ? <path d={d} className="target-edge-core" strokeWidth={round(0.04 * s)} /> : null}
+                <path d={d} className="target-edge-casing" />
+                <path d={d} className="target-edge-halo" />
+                <path d={d} className="target-edge-ring" />
+                {isHover ? <path d={d} className="target-edge-core" /> : null}
                 {isSelected ? <path d={d} className="target-edge-selected" strokeWidth={round(0.2 * s)} /> : null}
               </g>
             );
@@ -719,7 +726,7 @@ export function vertexLabel(view: GameView, index: BoardIndex, vertexId: string)
     .map((other) => view.players[view.buildings[other.id]?.owner ?? 0]?.name)
     .filter(Boolean);
   const suffix = neighbours.length > 0 ? ` Too close to ${neighbours[0]}'s building.` : '';
-  return `Empty corner. Touches ${detail}.${suffix}`;
+  return `Touches ${detail}.${suffix}`;
 }
 
 export function edgeLabel(view: GameView, index: BoardIndex, edgeId: string): string {

@@ -96,7 +96,6 @@ export function ActionBar(props: ActionBarProps): JSX.Element {
         <p className="prompt-line">{winner ? `${winner.name} wins at ${winner.vp} points.` : 'The game is over.'}</p>
         <div className="action-buttons">
           <Button variant="primary" onClick={props.onSeeResult}>See the result</Button>
-          {playersButton}
         </div>
       </div>
     );
@@ -177,9 +176,12 @@ export function ActionBar(props: ActionBarProps): JSX.Element {
   if (view.phase === 'roll') {
     if (!legal.isTurn) return bar(`Waiting on ${activeName} to roll.`, marketButton);
     return bar('Roll for production.', (
-      <Button variant="primary" onClick={props.onRoll} disabled={!legal.canRoll || lost} reason={lost ? 'Connection lost. Reconnecting.' : !legal.canRoll ? 'You cannot roll right now.' : null}>
-        Roll 2d6
-      </Button>
+      <>
+        <Button variant="primary" onClick={props.onRoll} disabled={!legal.canRoll || lost} reason={lost ? 'Connection lost. Reconnecting.' : !legal.canRoll ? 'You cannot roll right now.' : null}>
+          Roll 2d6
+        </Button>
+        {playersButton}
+      </>
     ));
   }
 
@@ -187,7 +189,10 @@ export function ActionBar(props: ActionBarProps): JSX.Element {
   if (view.phase === 'discard') {
     if (mustDiscard > 0) {
       return bar(`Discard ${mustDiscard} resources before play continues.`, (
-        <Button variant="primary" onClick={props.onDiscard} disabled={lost} reason={lost ? 'Connection lost. Reconnecting.' : null}>Discard {mustDiscard}</Button>
+        <>
+          <Button variant="primary" onClick={props.onDiscard} disabled={lost} reason={lost ? 'Connection lost. Reconnecting.' : null}>Discard {mustDiscard}</Button>
+          {playersButton}
+        </>
       ));
     }
     const owing = view.discardQueue.map((seat) => view.players[seat]).filter(Boolean);
@@ -216,7 +221,6 @@ export function ActionBar(props: ActionBarProps): JSX.Element {
           ) : (
             <Button variant="primary" disabled reason="Pick a hex first.">Move robber</Button>
           )}
-          {playersButton}
         </div>
       </div>
     );
@@ -229,13 +233,17 @@ export function ActionBar(props: ActionBarProps): JSX.Element {
       <>
         <Button variant="primary" onClick={props.onAccept} disabled={lost} reason={lost ? 'Connection lost. Reconnecting.' : null}>Accept</Button>
         <Button variant="secondary" onClick={props.onDecline} disabled={lost} reason={lost ? 'Connection lost. Reconnecting.' : null}>Decline</Button>
+        {playersButton}
       </>
     ));
   }
 
   if (myOffer && offer) {
     return bar(`Offer open. Waiting on ${offer.to.length} player${offer.to.length === 1 ? '' : 's'}.`, (
-      <Button variant="secondary" onClick={props.onCancelOffer} disabled={lost} reason={lost ? 'Connection lost. Reconnecting.' : null}>Cancel offer</Button>
+      <>
+        <Button variant="secondary" onClick={props.onCancelOffer} disabled={lost} reason={lost ? 'Connection lost. Reconnecting.' : null}>Cancel offer</Button>
+        {playersButton}
+      </>
     ));
   }
 
@@ -284,7 +292,6 @@ export function ActionBar(props: ActionBarProps): JSX.Element {
               );
             })}
           </div>
-          {playersButton}
         </div>
       </div>
     );
@@ -296,10 +303,10 @@ export function ActionBar(props: ActionBarProps): JSX.Element {
         <Button variant="secondary" onClick={props.onOpenBuild} disabled={lost} reason={lost ? 'Connection lost. Reconnecting.' : null}>Build</Button>
         <Button variant="secondary" onClick={props.onOpenTrade} disabled={lost} reason={lost ? 'Connection lost. Reconnecting.' : null}>Trade</Button>
         <Button variant="secondary" onClick={props.onOpenMarket} disabled={lost} reason={lost ? 'Connection lost. Reconnecting.' : null}>Buy</Button>
+        {playersButton}
         <Button variant="primary" onClick={props.onEndTurn} disabled={!legal.canEndTurn || lost} reason={lost ? 'Connection lost. Reconnecting.' : !legal.canEndTurn ? 'You cannot end the turn right now.' : null}>
           End turn
         </Button>
-        {playersButton}
       </div>
     </div>
   );
@@ -308,7 +315,7 @@ export function ActionBar(props: ActionBarProps): JSX.Element {
     return (
       <div className={`action-bar${className ? ` ${className}` : ''}`}>
         <p className="prompt-line">{promptText}</p>
-        <div className="action-buttons">{buttons}{playersButton}</div>
+        <div className="action-buttons">{buttons}</div>
       </div>
     );
   }

@@ -9,7 +9,6 @@ import { ResourceIcon } from '../ui/icons';
 interface HandDockProps {
   view: GameView;
   playableIids: Set<number>;
-  choiceIids: Set<number>;
   selectedIid: number | null;
   onPlay: (iid: number) => void;
   onInspect: (card: CardInstance) => void;
@@ -24,7 +23,7 @@ interface HandDockProps {
  * spec; tablets and phones get a flat scrolling row so the cards stay inside
  * the dock and nothing leans into the play strip.
  */
-export function HandDock({ view, playableIids, choiceIids, selectedIid, onPlay, onInspect, letters, boughtStub, reshuffling }: HandDockProps): JSX.Element {
+export function HandDock({ view, playableIids, selectedIid, onPlay, onInspect, letters, boughtStub, reshuffling }: HandDockProps): JSX.Element {
   const you = view.players[view.you];
   const dock = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(872);
@@ -301,9 +300,7 @@ export function HandDock({ view, playableIids, choiceIids, selectedIid, onPlay, 
               <CardFace
                 card={card}
                 def={def}
-                cost={view.cardCosts[card.defId]}
                 playable={playableIids.has(card.iid)}
-                needsChoice={choiceIids.has(card.iid)}
                 selected={selectedIid === card.iid}
                 letters={letters}
                 deal={deals.get(card.iid) ?? null}

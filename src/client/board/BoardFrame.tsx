@@ -40,6 +40,7 @@ export function BoardFrame({
   const [tip, setTip] = useState<{ text: string; x: number; y: number; show: boolean } | null>(null);
   const timer = useRef<number | undefined>(undefined);
   const dismissTimer = useRef<number | undefined>(undefined);
+  const suppressTipUntil = useRef(0);
   const coarse = useRef(false);
   const [diceAnimate, setDiceAnimate] = useState(false);
   const lastRoll = useRef<string>('');
@@ -86,6 +87,12 @@ export function BoardFrame({
 
   const showTip = (target: BoardTarget | null, point: { x: number; y: number } | null): void => {
     if (timer.current !== undefined) window.clearTimeout(timer.current);
+    // A placement re-renders new targets under the pointer. Do not pop a
+    // corner or hex tooltip over the result of the click that just landed.
+    if (performance.now() < suppressTipUntil.current) {
+      setTip(null);
+      return;
+    }
     if (!target) {
       setTip((current) => (current ? { ...current, show: false } : null));
       return;
@@ -113,6 +120,12 @@ export function BoardFrame({
     else timer.current = window.setTimeout(place, 60);
   };
 
+  const select = (target: BoardTarget): void => {
+    suppressTipUntil.current = performance.now() + 450;
+    setTip(null);
+    onSelect(target);
+  };
+
   const dice = view.dice;
 
   return (
@@ -128,7 +141,7 @@ export function BoardFrame({
         selected={selected}
         floaters={floaters}
         flashHexes={flashHexes}
-        onSelect={onSelect}
+        onSelect={select}
         onHover={showTip}
       />
 

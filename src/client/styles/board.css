@@ -224,10 +224,32 @@
 }
 
 .target-edge-hit { fill: none; stroke: transparent; }
+.target-edge-casing {
+  fill: none;
+  stroke: #1b2a22;
+  stroke-opacity: 0.55;
+  stroke-width: 8;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.target-edge-halo {
+  fill: none;
+  stroke: #e8cf98;
+  stroke-opacity: 0.22;
+  stroke-width: 7;
+  vector-effect: non-scaling-stroke;
+  animation: edgeHalo 1.8s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes edgeHalo {
+  0%, 100% { stroke-opacity: 0.16; }
+  50% { stroke-opacity: 0.34; }
+}
 .target-edge-ring {
   fill: none;
   stroke: #e8cf98;
-  stroke-opacity: 0.6;
+  stroke-opacity: 0.95;
+  stroke-width: 3.5;
   stroke-dasharray: 6 4;
   vector-effect: non-scaling-stroke;
   animation: dash 1.4s linear infinite;
@@ -237,6 +259,7 @@
   fill: none;
   stroke: #f6edd8;
   stroke-opacity: 0.9;
+  stroke-width: 1.5;
   vector-effect: non-scaling-stroke;
   pointer-events: none;
 }
@@ -298,7 +321,8 @@
 
 .reduced-motion .robber,
 .reduced-motion .target-setup .target-ring,
-.reduced-motion .target-edge-ring { animation: none; }
+.reduced-motion .target-edge-ring,
+.reduced-motion .target-edge-halo { animation: none; }
 /* Reduced motion keeps the numbers up for the same time, without the travel. */
 .reduced-motion .floater-text { animation: floaterFade 4200ms linear forwards; }
 @keyframes floaterFade {

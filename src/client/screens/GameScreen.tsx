@@ -289,7 +289,6 @@ export function GameScreen({
 
   const playable = useMemo(() => new Map(view.legal.playable.map((entry) => [entry.iid, entry])), [view.legal.playable]);
   const playableIids = useMemo(() => new Set(view.legal.playable.map((entry) => entry.iid)), [view.legal.playable]);
-  const choiceIids = useMemo(() => new Set(view.legal.playable.filter((entry) => entry.choice !== null).map((entry) => entry.iid)), [view.legal.playable]);
   const inspected = inspectedIid === null ? null : hand.find((card) => card.iid === inspectedIid) ?? null;
 
 
@@ -738,7 +737,6 @@ export function GameScreen({
           <HandDock
             view={view}
             playableIids={playableIids}
-            choiceIids={choiceIids}
             selectedIid={inspectedIid}
             onPlay={play}
             onInspect={(card: CardInstance) => setInspectedIid(card.iid)}

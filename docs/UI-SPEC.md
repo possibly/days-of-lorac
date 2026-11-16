@@ -255,7 +255,7 @@ Legal placement highlights:
 | Target | Rest | Hover | Selected |
 | --- | --- | --- | --- |
 | setup vertex | ring `0.24*S` gold-300 70%, pulse 1.6s | fill 30%, ring 100% | 2.4px ring, 4 corner brackets |
-| road edge | dashed `0.13*S` gold-300 60%, dashoffset 1.4s linear infinite | solid with a 1px parchment core | double outline |
+| road edge | dark casing, pulsing gold halo, dashed `0.15*S` gold-300, dashoffset 1.4s linear infinite | solid with a 1px parchment core | double outline |
 | settlement vertex | ring 70% | fill 30% | brackets |
 | city vertex | gold chevron over the owned settlement | chevron fills | brackets |
 | robber hex | hatch plus 1.6px gold ring on legal hexes | 3px ring, victims show in the bar | 3px p3 ring |
@@ -269,7 +269,7 @@ Tooltips: one shared layer, 120ms delay, 260px max, parchment-100, brass 1px,
 | Target | Text |
 | --- | --- |
 | hex | "Wood, 5. Pays 4 of 36. You have no buildings here." or "Robber blocks this hex." |
-| vertex | "Empty corner. Touches Wood 5, Ore 8, Sheep 10. 13 of 36. Too close to Kell's settlement." |
+| vertex | "Touches Wood 5, Ore 8, Sheep 10. 13 of 36. Too close to Kell's settlement." |
 | building | "Maren's city. Pays 2 on Wheat 8 and Ore 4. 15 of 36." |
 | edge | "Your road. Route length 6." or "Empty edge. Touches your road at the east end." |
 
@@ -303,26 +303,25 @@ cast upward. On desktop the cards fan inside it like filed ledger cards. At
 1180px and below the fan is replaced by a flat scrolling row of compact cards,
 so nothing tilts out of the dock or into the play strip.
 
-Hand cards are compact ledger slips: name, price while the card is in the
-market, and rules text. They are 152x100 on desktop, 124x70 on tablet, and
-110x70 on phone, which is about half the height of the original card face.
+Hand cards are compact slips: name, resource yield, and one short action label.
+They are 152x100 on desktop, 124x70 on tablet, and 110x70 on phone, about half
+the height of the original card face.
 
 ```
 +------------------------------+
-| Salvage Yard       W W W     |  name 13px serif, ellipsis; cost pips right
+| Salvage Yard                 |  name 13px serif, ellipsis
 +------------------------------+
-| Gain 2 Brick and 1 Ore.      |  11px/1.3 ink-700, clamped to 4 lines
-| ...                          |
+| +2 [brick]  +1 [ore]         |  15px tabular count plus 15px resource icon
+|                              |
 +------------------------------+
 ```
 
-The name is `CardDef.name` verbatim, one line, ellipsis. Cost shows `n` pips in
-the resource color plus a 10px icon. Rules text is `CardDef.text` word for word,
-clamped to four lines on desktop and two on tablet and phone. A card that needs
-a target keeps its 16px gold "?" badge in the header. The hex plate, flavor,
-footer tag, and charter stamp are inspector-only: at this height they would eat
-the space the rules text needs. Charters still score from purchase and still
-have no play affordance.
+The name is `CardDef.name` verbatim, one line, ellipsis. Gains render as `+N`
+plus the resource icon, in the resource color. Non-resource effects become
+short parchment labels: `Move robber`, `Free road`, `Free settlement`,
+`Draw 2`, `+1 renown`, `Gain 2 resources`. Charters show `1 VP` or `2 VP`.
+Price, full rules text, flavor, tag, and stamp are inspector-only. Charters
+still score from purchase and still have no play affordance.
 
 Fan math, `n` cards, dock width `W`:
 
@@ -338,11 +337,10 @@ hand to nine, where the same formula compresses to step 88 and keeps each card's
 left 88px clickable. Past nine, a "Spread" toggle switches to a scrolling row.
 
 At 1180px and below the row is always flat and scrolls sideways, and the spread
-toggle is hidden. The compact face keeps the name (up to two lines) and the
-rules text and drops the hex plate, cost pips, flavor, footer tag, and charter
-stamp and cost. Tablet cards are 124x70; phone cards are 110x70. Cards of the
-same type carry no count marker; the deck and discard counters already say how
-many copies exist.
+toggle is hidden. The same summary fits: a two-line name, one gain row, and up
+to two effect labels. Tablet cards are 124x70; phone cards are 110x70. Cards of
+the same type carry no count marker; the deck and discard counters already say
+how many copies exist.
 
 Interaction:
 
@@ -356,8 +354,7 @@ Interaction:
   inspector. The board is untouched, always.
 - Playable cards get a 2px gold-300 bottom edge, pointer cursor, and
   `aria-label` "Play Salvage Yard, gain 2 Brick and 1 Ore". Cards needing input
-  get a 16px gold hex badge reading "?" with tooltip "Pick a target after you
-  play this".
+  say so on the face: `Move robber`, `Free road`, or `Free settlement`.
 - Unplayable cards, meaning charters or any card outside your action phase, get
   `filter: saturate(.4) opacity(.72)` and no bottom edge. Charter tooltip:
   "Deed. Stays in your deck and scores from purchase. Nothing happens when
@@ -366,8 +363,9 @@ Interaction:
   play area strip, a 40px row of 96x40 stubs along the dock's top left. Cards
   needing a choice open the targeting flow in section 9 and wait.
 
-At 1024 the compact face runs at 124x138 with a 12px name over two lines and
-10.5px body over six lines. The inspector keeps the full text, cost, and flavor.
+At 1024 the compact face runs at 124x70 with a 12px name over two lines, 13px
+gains, and 9px effect labels. The inspector keeps the full text, cost, and
+flavor.
 Nothing renders below 11px.
 
 ---
@@ -807,8 +805,8 @@ breakpoint at `max-width: 640px`, plus a short-viewport guard at
   Players button opens the full stat boxes in the supply drawer.
 - Hand becomes a scrolling row of 110x70 cards. The fan needs more width than
   a phone has, and clipped cards were worse than a row. The spread toggle is
-  hidden on phones because the row is always on. Card faces keep the name and
-  rules text; cost, plate, flavor, and tag are hidden.
+  hidden on phones because the row is always on. Card faces keep the name, the
+  resource yield, and short effect labels.
 - Board frame keeps the full island. At 390px the SVG is 368x490; at 320px it
   is 298 wide. No horizontal scrolling anywhere.
 - Short landscape keeps a 32px active-player strip, hides the play-area strip,
@@ -842,17 +840,10 @@ below 760px the victim picker stacks: prompt, then a chip row that scrolls
 sideways with a right-edge fade when it overflows, then the commit buttons on
 their own line. The button never depends on a scroll.
 
-Hand cards on every screen now carry the name and the rules text, plus the price
-on desktop: no hex plate, no flavor, no tag row. Tablet and phone also drop the
-cost pips (cards are free to play, so that number is the market price). Long
-names wrap to two lines on the small layouts instead of ellipsing. The rules
-text clamps at four lines on desktop and two on tablet and phone; the inspector
-holds the full sentence.
-
-And one WebKit trap: `text-wrap: pretty` on the clamped card text broke the
-text into stub lines about half the box width, so a card that needed seven
-lines rendered as ten short ones with an ellipsis. Chrome was fine, which is
-why it only showed up on the phone. The rule is gone from `.card-text`.
+Hand cards on every screen now carry the name, the resource yield as `+N` plus
+an icon, and at most a couple of short effect labels. Price, full text, flavor,
+and tag stay in the market or the inspector. Long names wrap to two lines on
+the small layouts instead of ellipsing.
 
 ### Building had no entry point (found on the phone)
 
