@@ -260,7 +260,6 @@ export function HandDock({ view, playableIids, choiceIids, selectedIid, onPlay, 
             <span className="play-stub-name">bought {boughtStub.name}</span>
           </span>
         ) : null}
-        {played.length === 0 && !boughtStub ? <span className="play-area-empty">Play area</span> : null}
       </div>
 
         <div className={`hand-counters${reshuffling ? ' is-reshuffling' : ''}`} aria-hidden="true">
