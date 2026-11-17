@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { GuildSeal } from '../ui/icons';
 import { Button } from '../ui/Button';
 import type { ResumablePeerTable } from '../net/peer/session';
+import type { SoloResumeInfo } from '../net/solo-save';
 
 interface TitleScreenProps {
   name: string;
@@ -17,6 +18,10 @@ interface TitleScreenProps {
   resumable: ResumablePeerTable | null;
   onResume: () => void;
   onDiscardResume: () => void;
+  /** A bot game this browser saved. */
+  soloResume: SoloResumeInfo | null;
+  onResumeSolo: () => void;
+  onForgetSolo: () => void;
 }
 
 export function TitleScreen({
@@ -31,6 +36,9 @@ export function TitleScreen({
   resumable,
   onResume,
   onDiscardResume,
+  soloResume,
+  onResumeSolo,
+  onForgetSolo,
 }: TitleScreenProps): JSX.Element {
   const [showName, setShowName] = useState(false);
 
@@ -63,6 +71,18 @@ export function TitleScreen({
                 {resumable.role === 'host' ? 'Reopen' : 'Rejoin'}
               </Button>
               <Button variant="ghost" onClick={onDiscardResume}>Forget</Button>
+            </span>
+          </div>
+        ) : null}
+
+        {soloResume ? (
+          <div className="resume-strip">
+            <span>
+              Bot game, {soloResume.turn > 0 ? `turn ${soloResume.turn}` : 'setup'}, {soloResume.seats} players.
+            </span>
+            <span className="resume-actions">
+              <Button variant="secondary" onClick={onResumeSolo}>Resume</Button>
+              <Button variant="ghost" onClick={onForgetSolo}>Forget</Button>
             </span>
           </div>
         ) : null}

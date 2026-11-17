@@ -116,6 +116,15 @@ cards) +2. Some cards score VP directly and become dead draws.
   resume and the table stays with the host's browser.
 - No account system. Name only.
 
+### Saving
+
+- A game saves to this browser's localStorage as it changes. A reload reopens it
+  without asking; a save older than 45 seconds is offered on the title screen.
+  Older saves are kept until the player starts a new game, leaves, or forgets it.
+- Bot games keep the state plus the settings that made the board. Peer tables
+  keep the room on the host and a seat token on each guest; see `docs/PEER.md`.
+- Nothing is uploaded, so a saved game never leaves the browser that played it.
+
 ## Design and code quality bar
 
 - Exact card text and tooltips. A new player should understand every button.

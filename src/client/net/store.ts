@@ -96,6 +96,8 @@ class StoreFront implements GameStore {
 
 const localClient = new LocalClient();
 
+export { localClient };
+
 export const client = new StoreFront(localClient);
 
 /** The room-protocol client. Peer hosting and peer joining both use it. */
@@ -110,3 +112,9 @@ export function activateOnline(): void {
 }
 
 export type { ClientSnapshot, LinkState, WireError } from './socket';
+
+// Dev-only handle, same idea as __lorac in socket.ts: the bot game has its own
+// store, so a console or a QA script needs a way to read the solo snapshot.
+if ((import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV && typeof window !== 'undefined') {
+  (window as unknown as { __loracLocal?: LocalClient }).__loracLocal = localClient;
+}

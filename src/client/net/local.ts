@@ -6,6 +6,10 @@
  * shared engine runs in the browser, and the bots that `src/server/room-manager`
  * would have paced over a socket are paced here with `setTimeout`.
  *
+ * The game is written to localStorage as it changes, so a reload lands back on
+ * the same board. `restore` puts a saved game back on screen; whether a save is
+ * resumed on boot or offered on the title screen is decided in App.tsx.
+ *
  * This is the default store. Peer tables swap in `socket.ts` for the duration of
  * the table and swap back here on leave. The bot policy is pure TypeScript with
  * no Node imports, so it ships in the client bundle.
@@ -27,10 +31,14 @@ import type {
 } from '@shared/types';
 import { chooseBotAction } from '../../server/bots/index.js';
 import type { ClientSnapshot } from './socket';
+import { SOLO_VERSION, clearSoloGame, saveSoloGame } from './solo-save';
+import type { SavedSoloGame } from './solo-save';
 
 const BOT_NAMES = ['Vale', 'Kestrel', 'Marrow'] as const;
 const BOT_DELAY: [number, number] = [450, 950];
 const MAX_BOT_FAILURES = 8;
+/** Writing the game to localStorage more often than this buys nothing. */
+const SAVE_THROTTLE_MS = 1000;
 
 function randomSeed(): number {
   return (Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0;
@@ -71,6 +79,8 @@ export class LocalClient {
   private cards: CardSettings = DEFAULT_CARD_SETTINGS;
   private humanName = 'You';
   private timer: number | undefined;
+  private saveTimer: number | undefined;
+  private saveWatched = false;
   private botFailures = 0;
   private disposed = false;
 
@@ -92,12 +102,39 @@ export class LocalClient {
 
   // ----- lifecycle ---------------------------------------------------------
 
-  /** Nothing to connect to. Kept for API parity with the socket client. */
-  start(): void {}
+  /** Nothing to connect to. Starts watching for a chance to flush the save. */
+  start(): void {
+    if (this.saveWatched) return;
+    this.saveWatched = true;
+    window.addEventListener('pagehide', this.writeSave);
+    document.addEventListener('visibilitychange', this.onVisibility);
+  }
 
   stop(): void {
     this.disposed = true;
     this.clearTimer();
+    this.clearSaveTimer();
+    window.removeEventListener('pagehide', this.writeSave);
+    document.removeEventListener('visibilitychange', this.onVisibility);
+    this.saveWatched = false;
+  }
+
+  /**
+   * Puts a saved game back on screen. The state carries the RNG and every pile,
+   * so this is a reload, not a replay: nothing is re-derived from actions.
+   */
+  restore(save: SavedSoloGame): void {
+    this.clearTimer();
+    this.humanName = save.humanName;
+    this.seats = save.seats;
+    this.difficulty = save.difficulty;
+    this.map = { ...save.map };
+    this.cards = { ...save.cards };
+    this.state = save.state;
+    this.botFailures = 0;
+    this.disposed = false;
+    this.publish();
+    this.scheduleBots();
   }
 
   // ----- intents -----------------------------------------------------------
@@ -140,6 +177,8 @@ export class LocalClient {
 
   leaveRoom(): void {
     this.clearTimer();
+    this.clearSaveTimer();
+    clearSoloGame();
     this.state = null;
     this.botFailures = 0;
     this.update(initialSnapshot());
@@ -209,6 +248,42 @@ export class LocalClient {
       ready: true,
       serverVersion: GAME_VERSION,
     });
+    this.scheduleSave();
+  }
+
+  private scheduleSave(): void {
+    if (this.saveTimer !== undefined || this.disposed) return;
+    this.saveTimer = window.setTimeout(() => {
+      this.saveTimer = undefined;
+      this.writeSave();
+    }, SAVE_THROTTLE_MS);
+  }
+
+  private writeSave = (): void => {
+    const state = this.state;
+    if (!state || this.disposed) return;
+    saveSoloGame({
+      v: SOLO_VERSION,
+      gameVersion: GAME_VERSION,
+      savedAt: Date.now(),
+      humanName: this.humanName,
+      seats: this.seats,
+      difficulty: this.difficulty,
+      map: this.map,
+      cards: this.cards,
+      state,
+    });
+  };
+
+  private onVisibility = (): void => {
+    if (document.visibilityState === 'hidden') this.writeSave();
+  };
+
+  private clearSaveTimer(): void {
+    if (this.saveTimer !== undefined) {
+      window.clearTimeout(this.saveTimer);
+      this.saveTimer = undefined;
+    }
   }
 
   private clearTimer(): void {

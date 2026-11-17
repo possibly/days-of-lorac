@@ -2,8 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { GAME_VERSION } from '@shared/version';
 import type { CardSettings, GameAction, GameView, MapSettings, Seat } from '@shared/types';
 import { normalizeMapSettings } from '@shared/map-settings';
-import { client } from './net/store';
+import { client, localClient } from './net/store';
 import { useGame } from './net/useGame';
+import { clearSoloGame, isSoloFresh, loadSoloGame, soloResumeInfo } from './net/solo-save';
+import type { SoloResumeInfo } from './net/solo-save';
 import { errorLine } from './net/errors';
 import {
   loadLetters,
@@ -60,6 +62,7 @@ export default function App(): JSX.Element {
   const fixtureLoader = useRef<((mode: FixtureMode, map: MapSettings) => FixtureSession) | null>(null);
   const [fixtureView, setFixtureView] = useState<GameView | null>(null);
   const [busyLabel, setBusyLabel] = useState('Opening the table…');
+  const [soloResume, setSoloResume] = useState<SoloResumeInfo | null>(null);
 
   const toastId = useRef(1);
   const booted = useRef(false);
@@ -90,22 +93,35 @@ export default function App(): JSX.Element {
     saveName(name);
   }, [name]);
 
-  // #code=... is a relay join link. Without one, boot looks for a table this
-  // browser saved, which is how a reload comes back into the same seat.
+  // #code=... is a relay join link. Without one, boot looks for work this
+  // browser left behind, which is how a reload comes back into a table or a
+  // bot game. A live peer table wins over a solo save; both are offered on the
+  // title screen when neither is fresh.
   useEffect(() => {
     if (peerBooted.current || fixtureMode) return;
     peerBooted.current = true;
     const invited = window.location.hash.includes('code=');
-    if (!invited) {
-      const mode = peer.boot();
-      if (mode === 'auto') {
-        setBusyLabel('Reopening the table…');
-        setScreen('connecting');
-        return;
-      }
-      if (mode === 'prompt') return;
+    if (invited) {
+      if (peer.loadInviteFromUrl()) setScreen('peer-join');
+      return;
     }
-    if (invited && peer.loadInviteFromUrl()) setScreen('peer-join');
+
+    const peerMode = peer.boot();
+    const savedSolo = loadSoloGame();
+    const freshSolo = savedSolo !== null && isSoloFresh(savedSolo);
+
+    if (peerMode === 'auto') {
+      // A live table wins the boot. Keep the bot game on offer for later.
+      if (savedSolo) setSoloResume(soloResumeInfo(savedSolo));
+      setBusyLabel('Reopening the table…');
+      setScreen('connecting');
+      return;
+    }
+    if (savedSolo && freshSolo) {
+      localClient.restore(savedSolo);
+      return;
+    }
+    if (savedSolo) setSoloResume(soloResumeInfo(savedSolo));
   }, [fixtureMode]);
 
   // Peer phases own their screens until the room protocol takes over.
@@ -342,6 +358,17 @@ export default function App(): JSX.Element {
           void peer.resumeSaved();
         }}
         onDiscardResume={() => peer.discardSaved()}
+        soloResume={soloResume}
+        onResumeSolo={() => {
+          const saved = loadSoloGame();
+          setSoloResume(null);
+          if (!saved) return;
+          localClient.restore(saved);
+        }}
+        onForgetSolo={() => {
+          clearSoloGame();
+          setSoloResume(null);
+        }}
       />
     );
   }

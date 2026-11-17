@@ -70,11 +70,7 @@ export interface RoomSave {
 
 /** Everything worth keeping, with the sockets and timers dropped. */
 export function roomToSave(room: Room, now = Date.now()): RoomSave {
-  const state = room.state;
-  const trimmedState =
-    state && state.log.length > SAVE_LOG_LIMIT
-      ? { ...state, log: state.log.slice(-SAVE_LOG_LIMIT) }
-      : state;
+  const trimmedState = room.state ? trimStateLog(room.state) : null;
 
   return {
     v: SAVE_VERSION,
@@ -111,6 +107,24 @@ export function roomToSave(room: Room, now = Date.now()): RoomSave {
 
 export function serializeRoom(room: Room, now = Date.now()): string {
   return JSON.stringify(roomToSave(room, now));
+}
+
+/**
+ * Drops all but the newest log lines. The UI shows 120, so 400 keeps history
+ * without letting a long game turn every save into a megabyte of JSON.
+ */
+export function trimStateLog(state: GameState): GameState {
+  if (state.log.length <= SAVE_LOG_LIMIT) return state;
+  return { ...state, log: state.log.slice(-SAVE_LOG_LIMIT) };
+}
+
+/**
+ * Structural check for a saved game state. Null means "not usable", which for a
+ * solo save is a fresh start rather than an empty lobby.
+ */
+export function parseGameState(value: unknown, playerCount: number): GameState | null {
+  const state = readState(value, playerCount);
+  return state === null || state === false ? null : state;
 }
 
 /**
