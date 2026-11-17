@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { GuildSeal } from '../ui/icons';
 import { Button } from '../ui/Button';
+import type { ResumablePeerTable } from '../net/peer/session';
 
 interface TitleScreenProps {
   name: string;
@@ -12,6 +13,10 @@ interface TitleScreenProps {
   onPeerJoin: () => void;
   onRules: () => void;
   clientVersion: string;
+  /** A peer table this browser saved before a refresh or a crash. */
+  resumable: ResumablePeerTable | null;
+  onResume: () => void;
+  onDiscardResume: () => void;
 }
 
 export function TitleScreen({
@@ -23,6 +28,9 @@ export function TitleScreen({
   onPeerJoin,
   onRules,
   clientVersion,
+  resumable,
+  onResume,
+  onDiscardResume,
 }: TitleScreenProps): JSX.Element {
   const [showName, setShowName] = useState(false);
 
@@ -42,6 +50,22 @@ export function TitleScreen({
             </>
           ) : null}
         </div>
+
+        {resumable ? (
+          <div className="resume-strip">
+            <span>
+              {resumable.role === 'host' ? 'Table ' : 'Seat at table '}
+              <b>{resumable.relayCode}</b>
+              {resumable.role === 'host' ? ' is still open in this browser.' : ' is still saved in this browser.'}
+            </span>
+            <span className="resume-actions">
+              <Button variant="secondary" onClick={onResume}>
+                {resumable.role === 'host' ? 'Reopen' : 'Rejoin'}
+              </Button>
+              <Button variant="ghost" onClick={onDiscardResume}>Forget</Button>
+            </span>
+          </div>
+        ) : null}
 
         {!multiplayer ? (
           <p className="title-note">

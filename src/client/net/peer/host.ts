@@ -66,6 +66,32 @@ export class PeerHost {
     return this.managerRoom;
   }
 
+  /** The live room as JSON, for the host tab's localStorage. */
+  exportRoom(): string | null {
+    const room = this.managerRoom;
+    if (!room || this.disposed) return null;
+    return this.manager.exportRoom(room.code);
+  }
+
+  /**
+   * Rebuilds the room from a snapshot. Seats come back disconnected with their
+   * tokens intact; the host's own client resumes through the loopback and guests
+   * resume as their channels come back.
+   */
+  restore(raw: string): RoomSummary | null {
+    if (this.disposed) return null;
+    const room = this.manager.restoreRoom(raw);
+    if (!room) return null;
+    const hostSlot = room.seats[room.hostSeat];
+    const summary: RoomSummary = {
+      code: room.code,
+      host: hostSlot?.name ?? '',
+      seats: room.config.maxPlayers,
+    };
+    this.managerRoom = summary;
+    return summary;
+  }
+
   dispose(): void {
     this.disposed = true;
     this.pair.close();

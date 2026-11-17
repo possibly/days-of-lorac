@@ -40,6 +40,11 @@ export interface ClientSnapshot {
   ready: boolean;
   roomCode: string | null;
   you: Seat | null;
+  /**
+   * Reconnect secret for this seat. The client parks it in localStorage so a
+   * refresh can come back as the same player.
+   */
+  token: string | null;
   /** Host seat of the room, from the lobby or a game message. */
   hostSeat: Seat | null;
   /** Seats a bot is flying because the human dropped mid-game. */
@@ -58,6 +63,7 @@ const INITIAL: ClientSnapshot = {
   ready: false,
   roomCode: null,
   you: null,
+  token: null,
   hostSeat: null,
   pilotSeats: [],
   lobby: null,
@@ -226,6 +232,7 @@ export class GameClient {
         this.update({
           lobby: message.room,
           you: message.you,
+          token: message.token,
           roomCode: message.room.code,
           hostSeat: message.room.hostSeat,
           pilotSeats: [],
@@ -238,6 +245,7 @@ export class GameClient {
         this.update({
           game: message.view,
           you: message.you,
+          token: message.token,
           roomCode: message.roomCode,
           hostSeat: message.hostSeat ?? this.snapshot.hostSeat ?? (this.snapshot.lobby?.hostSeat ?? null),
           pilotSeats: Array.isArray(message.pilotSeats) ? message.pilotSeats.slice() : [],
@@ -259,6 +267,7 @@ export class GameClient {
             lobby: null,
             game: null,
             you: null,
+            token: null,
             hostSeat: null,
             pilotSeats: [],
             error,
@@ -279,6 +288,7 @@ export class GameClient {
           lobby: null,
           game: null,
           you: null,
+          token: null,
           hostSeat: null,
           pilotSeats: [],
         });
@@ -313,6 +323,11 @@ export class GameClient {
 
   joinRoom(code: string, name: string): void {
     this.send({ type: 'joinRoom', code: code.toUpperCase(), name });
+  }
+
+  /** Reattach to a seat this browser held before a refresh. */
+  resume(code: string, token: string): void {
+    this.send({ type: 'resume', code: code.toUpperCase(), token });
   }
 
   leaveRoom(): void {

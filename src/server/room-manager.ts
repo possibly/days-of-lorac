@@ -36,6 +36,7 @@ import {
 } from '@shared/card-settings';
 import type { ChatMessage, LobbyView, ServerMessage, WireErrorCode } from '@shared/protocol';
 import { chooseBotAction } from './bots/index.js';
+import { deserializeRoom, serializeRoom } from './room-save.js';
 import {
   MAX_CHAT_HISTORY,
   MAX_SEATS,
@@ -164,6 +165,45 @@ export class RoomManager {
   /** Test and debugging hook. Treat the returned room as read-only. */
   getRoom(code: string): Room | undefined {
     return this.rooms.get(code);
+  }
+
+  /**
+   * The room as a string the host tab can park in localStorage. Null when the
+   * code is unknown or the room has already closed.
+   */
+  exportRoom(rawCode: string): string | null {
+    const code = normalizeCode(rawCode);
+    if (!code) return null;
+    const room = this.rooms.get(code);
+    if (!room || room.closed) return null;
+    return serializeRoom(room, this.clock.now());
+  }
+
+  /**
+   * Rebuilds a room from a snapshot. Every human starts disconnected, so the
+   * reconnect path is the same one a dropped socket uses: seat tokens, takeover
+   * timers, and the existing `resume` message.
+   */
+  restoreRoom(raw: string): Room | null {
+    const room = deserializeRoom(raw, this.clock.now());
+    if (!room) return null;
+
+    const previous = this.rooms.get(room.code);
+    if (previous) this.closeRoom(previous, 'Reloaded from a snapshot.');
+
+    this.rooms.set(room.code, room);
+    const now = this.clock.now();
+    for (const slot of occupiedSlots(room)) {
+      if (slot.isBot) continue;
+      slot.connected = false;
+      slot.connection = null;
+      slot.disconnectedAt = now;
+      if (room.status === 'playing') this.armTakeover(room, slot);
+      else if (room.status === 'lobby') this.armLobbyExpiry(room, slot);
+    }
+    this.updateCleanup(room);
+    this.scheduleBots(room);
+    return room;
   }
 
   // -------------------------------------------------------------------------

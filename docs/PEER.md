@@ -42,11 +42,43 @@ have to type it separately. It is an internal id and never appears in the UI.
 The four-letter code on the lobby header, the invite card, and the game header
 is the relay code, which is the one guests type.
 
+## Refresh and resume
+
+A refresh does not end the table, as long as the same browser comes back.
+
+- The host tab writes the room to `localStorage` as it changes: throttled to at
+  most once a second, plus a final write on `pagehide` and when the tab is
+  hidden. A snapshot is 20 KB at setup and around 80 KB mid-game; the log is
+  trimmed to the last 400 lines first, and the UI only shows 120.
+- A guest saves the relay code, the room code, its seat number, and its seat
+  token. That token is the same secret the room already hands out for a dropped
+  socket, so a refresh takes the existing `resume` path instead of inventing a
+  second one.
+- On load, a save younger than 45 seconds reopens without asking. That is the
+  reload case. A save younger than two hours asks on the title screen with a
+  resume strip. Older than that, the save is deleted.
+- The host reclaims its published relay code. Guests retry the relay for up to
+  90 seconds while the host tab reloads, then resume their seats.
+- If the host's relay code was taken during the gap, which needs someone else to
+  guess it inside a second or two, the host falls back to a fresh code and the
+  invite card shows it.
+
+What this does not do: the table still lives in the host's browser. Closing the
+laptop, signing out of the browser profile, or clearing site data ends it for
+everyone. Another device cannot resume either, because nothing is uploaded. The
+snapshot holds every seat token and every hand, which is the same thing the open
+host tab already holds in memory.
+
 ## What can go wrong
 
-- **The host's tab is the server.** Lock the phone, close the tab, or refresh,
-  and the table is gone. The host screen asks for a screen wake lock while it
-  hosts and says so on the setup panel.
+- **The host's tab is the server.** A refresh, a crash, or a locked phone that
+  discards the tab comes back: the room is saved in this browser and the host
+  resumes its own seat. Closing the browser for good, using another device, or
+  clearing site data still ends the table. The host screen asks for a screen
+  wake lock while it hosts and says so on the setup panel.
+- **A resumed table can lose the last second of play.** Saves are throttled to
+  once a second. Reloads and tab switches flush first and lose nothing; a browser
+  that is killed outright skips that flush, so the newest actions can be gone.
 - **No TURN.** Two devices on one home wifi connect over host candidates and
   never touch the internet. Across networks, STUN covers most home routers, but
   symmetric NAT on mobile carriers can fail to connect. The error says to try
@@ -70,7 +102,12 @@ See `relay/README.md`. Short version: free Cloudflare account, no card,
 
 - `src/client/net/peer/relay.ts` relay signaling, host and guest side.
 - `src/client/net/peer/session.ts` the state machine the screens subscribe to,
-  including the store swap from the in-tab bot game to the room client.
+  including the store swap from the in-tab bot game to the room client and the
+  resume paths in both directions.
+- `src/client/net/peer/session-save.ts` what a browser remembers about a table:
+  relay code, seat token, and the host's room snapshot, with the two-hour window.
+- `src/server/room-save.ts` room to JSON and back, with validation. A snapshot
+  from another build, or one edited by hand, is ignored instead of half-applied.
 - `src/client/net/peer/signaling.ts` ICE settings, candidate filtering, ICE
   gathering wait.
 - `src/client/net/peer/socket-like.ts` the transport seam: `SocketLike`, the data

@@ -50,6 +50,7 @@ function initialSnapshot(): ClientSnapshot {
     ready: true,
     roomCode: null,
     you: null,
+    token: null,
     hostSeat: null,
     pilotSeats: [],
     lobby: null,

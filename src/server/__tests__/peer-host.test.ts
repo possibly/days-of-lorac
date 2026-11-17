@@ -129,4 +129,47 @@ describe('peer host wiring', () => {
     host.close();
     back.close();
   });
+
+  it('rebuilds a whole table from a snapshot after a refresh', async () => {
+    const first = new RoomManager({ log: () => {}, botDelayMs: [0, 0] });
+    const host = makePeer(first, 'host');
+    const guest = makePeer(first, 'guest');
+
+    host.send({ type: 'createRoom', name: 'Tyler', maxPlayers: 2, difficulty: 'normal' });
+    await until(() => last(host, 'lobby') !== null);
+    const code = last(host, 'lobby')?.room.code ?? '';
+    guest.send({ type: 'joinRoom', code, name: 'Guest' });
+    await until(() => last(guest, 'lobby') !== null);
+    guest.send({ type: 'setReady', ready: true });
+    await until(() => last(guest, 'lobby')?.room.players[1]?.ready === true);
+    host.send({ type: 'startGame' });
+    await until(() => last(host, 'game') !== null && last(guest, 'game') !== null);
+
+    const hostToken = last(host, 'game')?.token ?? '';
+    const guestToken = last(guest, 'game')?.token ?? '';
+    const version = last(host, 'game')?.view.version;
+    const snapshot = first.exportRoom(code) ?? '';
+    expect(snapshot).not.toBe('');
+
+    // The browser reloaded: brand new process, same localStorage blob.
+    const second = new RoomManager({ log: () => {}, botDelayMs: [0, 0] });
+    expect(second.restoreRoom(snapshot)).not.toBeNull();
+
+    const hostAgain = makePeer(second, 'host-again');
+    hostAgain.send({ type: 'resume', code, token: hostToken });
+    await until(() => last(hostAgain, 'game') !== null);
+    expect(last(hostAgain, 'game')?.you).toBe(0);
+    expect(last(hostAgain, 'game')?.view.version).toBe(version);
+
+    const guestAgain = makePeer(second, 'guest-again');
+    guestAgain.send({ type: 'resume', code, token: guestToken });
+    await until(() => last(guestAgain, 'game') !== null);
+    expect(last(guestAgain, 'game')?.you).toBe(1);
+    expect(last(guestAgain, 'game')?.view.version).toBe(version);
+
+    host.close();
+    guest.close();
+    hostAgain.close();
+    guestAgain.close();
+  });
 });

@@ -110,8 +110,10 @@ cards) +2. Some cards score VP directly and become dead draws.
 - Guests join, take a seat, the host adds bots, everyone readies, host starts.
 - The host's tab filters hidden information per player (hand, deck order, other
   players' resources are public in Catan; keep resources public).
-- If a guest drops, the host's room manager may let a bot fly the seat. A
-  closed channel is not resumed: the guest starts a new table.
+- If a guest drops, the host's room manager may let a bot fly the seat. A guest
+  whose tab reloads resumes the same seat, as does a host, using a snapshot kept
+  in that browser's localStorage. Nothing is uploaded, so another device cannot
+  resume and the table stays with the host's browser.
 - No account system. Name only.
 
 ## Design and code quality bar

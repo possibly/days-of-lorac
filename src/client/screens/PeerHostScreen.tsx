@@ -45,7 +45,9 @@ export function PeerHostScreen({
         <h1 className="panel-title">Host a table</h1>
         <p className="setup-note">
           The table runs in this tab and phones join over the relay. No accounts.
-          Keep this tab open and awake for the whole game: a refresh ends the table.
+          Keep this tab open and awake for the whole game. If this browser reloads,
+          you can reopen the table here for the next two hours; a different
+          browser cannot.
         </p>
 
         <label className="field">

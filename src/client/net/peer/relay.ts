@@ -11,7 +11,7 @@
  * The relay only forwards session descriptions. Game data runs on the data
  * channel and never touches Cloudflare.
  */
-import { randomRelayCode, relayServerMessage } from '@shared/relay';
+import { isRelayCode, randomRelayCode, relayServerMessage } from '@shared/relay';
 import type { RelayClientMessage } from '@shared/relay';
 import { gatheredDescription, ICE_SERVERS, trimSdp } from './signaling';
 import { createDeferredSocket, rtcSocket } from './socket-like';
@@ -99,17 +99,24 @@ export class RelayHost {
   }
 
   /**
-   * Tries codes until one is free. Rejects when the relay is unreachable, with
+   * Tries codes until one is free. A host coming back after a refresh passes
+   * the code it already published, which the relay still has free because the
+   * room died with its host socket. Rejects when the relay is unreachable, with
    * an overall budget so a blackholed network reports a clear error instead of
    * leaving the host staring at a spinner.
    */
-  async start(attempts = 6, budgetMs = 8000): Promise<string> {
+  async start(preferred: string | null = null, attempts = 6, budgetMs = 8000): Promise<string> {
     const deadline = Date.now() + budgetMs;
-    for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const codes: string[] = [];
+    // A handful of retries on the published code: the previous socket's close
+    // can lag the reload by a moment, and the room is not worth losing to that.
+    if (preferred && isRelayCode(preferred)) codes.push(preferred, preferred, preferred);
+    for (let index = codes.length; index < attempts; index += 1) codes.push(randomRelayCode());
+
+    for (const code of codes) {
       if (this.closed) throw new Error('Cancelled.');
       const left = deadline - Date.now();
       if (left <= 0) break;
-      const code = randomRelayCode();
       this.events.onState?.('connecting');
       try {
         await this.connect(code, Math.min(3000, left));
@@ -117,7 +124,13 @@ export class RelayHost {
         this.events.onState?.('open');
         return code;
       } catch (error) {
-        if (error instanceof TakenError) continue;
+        if (error instanceof TakenError) {
+          // A reclaim can lose a race with the old socket's close event. The
+          // published code is worth a beat more than a random one, because
+          // guests are already waiting on it.
+          if (code === preferred) await pause(400);
+          continue;
+        }
         throw error instanceof Error ? error : new Error('The relay did not answer.');
       }
     }
@@ -272,9 +285,17 @@ export class RelayHost {
 
 class TakenError extends Error {}
 
+function pause(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
 interface GuestEvents {
   onFail: (reason: string) => void;
   onState?: (state: 'connecting' | 'waiting' | 'open') => void;
+  /** How long to wait for the host's offer before giving up on this attempt. */
+  offerTimeoutMs?: number;
 }
 
 export class RelayGuest {
@@ -310,7 +331,7 @@ export class RelayGuest {
     // slow phone, then say something useful instead of spinning forever.
     this.timer = window.setTimeout(() => {
       if (!this.roomCode) this.events.onFail('The host did not answer. Ask them to check their tab.');
-    }, 20_000);
+    }, this.events.offerTimeoutMs ?? 20_000);
 
     socket.onmessage = (event) => {
       const message = relayServerMessage(String(event.data));

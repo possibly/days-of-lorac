@@ -1,27 +1,63 @@
 /**
- * Small localStorage helpers. Only the display name and two display settings
- * are persisted; nothing about the game itself.
+ * Small localStorage helpers. Display preferences, and the peer table this tab
+ * can return to after a refresh.
+ *
+ * Writes never throw: private mode and a full quota both leave the game working,
+ * it just forgets. When there is no `window.localStorage` at all (unit tests,
+ * a server render) the helpers fall back to an in-memory map so callers do not
+ * need a second code path.
  */
 
 const NAME_KEY = 'lorac.name';
 const SOUND_KEY = 'lorac.sound';
 const LETTERS_KEY = 'lorac.letters';
 
-function safeGet(key: string): string | null {
+const memory = new Map<string, string>();
+
+function backing(): Storage | null {
   try {
-    return window.localStorage.getItem(key);
+    const store = (globalThis as { localStorage?: Storage }).localStorage;
+    return store ?? null;
   } catch {
     return null;
   }
 }
 
-function safeSet(key: string, value: string | null): void {
+export function readRaw(key: string): string | null {
   try {
-    if (value === null) window.localStorage.removeItem(key);
-    else window.localStorage.setItem(key, value);
+    const store = backing();
+    if (store) return store.getItem(key);
   } catch {
-    // Private mode or a full quota: the game still works, it just forgets.
+    // Private mode can throw on read as well as write.
   }
+  return memory.get(key) ?? null;
+}
+
+export function writeRaw(key: string, value: string): void {
+  memory.set(key, value);
+  try {
+    backing()?.setItem(key, value);
+  } catch {
+    // Quota or private mode. The in-memory copy still serves this tab.
+  }
+}
+
+export function removeRaw(key: string): void {
+  memory.delete(key);
+  try {
+    backing()?.removeItem(key);
+  } catch {
+    // Nothing to do; the value is already forgotten in memory.
+  }
+}
+
+function safeGet(key: string): string | null {
+  return readRaw(key);
+}
+
+function safeSet(key: string, value: string | null): void {
+  if (value === null) removeRaw(key);
+  else writeRaw(key, value);
 }
 
 export function loadName(): string {

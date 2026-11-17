@@ -6,10 +6,16 @@
  * connect straight to this tab over WebRTC. The relay carries the handshake
  * only.
  *
+ * Refresh: the host tab is the server, so the room is written to localStorage
+ * as it changes. A reload rebuilds the room, the host resumes its own seat, and
+ * guests retry the relay with the seat token they kept. Nothing leaves the
+ * browser.
+ *
  * Everything the UI needs is in one external store so screens do not have to
  * thread callbacks around. React binding lives in `usePeer.ts`.
  */
 import { isRelayCode } from '@shared/relay';
+import type { Seat } from '@shared/types';
 import type { ClientSnapshot } from '../socket';
 import { onlineClient, activateLocal, activateOnline } from '../store';
 import type { GameStore } from '../store';
@@ -22,6 +28,14 @@ import {
   relayBaseUrl,
   relayJoinUrl,
 } from './relay';
+import {
+  SESSION_VERSION,
+  clearSavedSession,
+  isFresh,
+  loadSavedSession,
+  saveSavedSession,
+} from './session-save';
+import type { SavedPeerSession } from './session-save';
 
 export type PeerRole = 'idle' | 'host' | 'guest';
 export type PeerPhase =
@@ -30,8 +44,18 @@ export type PeerPhase =
   | 'host-ready'
   | 'guest-preview'
   | 'guest-answering'
+  | 'guest-reconnecting'
   | 'connected'
   | 'error';
+
+/** A table this browser could walk back into, from the title screen. */
+export interface ResumablePeerTable {
+  role: 'host' | 'guest';
+  relayCode: string;
+  room: string;
+  seat: Seat;
+  savedAt: number;
+}
 
 export interface PeerSnapshot {
   role: PeerRole;
@@ -46,6 +70,8 @@ export interface PeerSnapshot {
   hostName: string | null;
   seats: 2 | 3 | 4;
   error: string | null;
+  /** Set while no table is active but one could be resumed. */
+  resumable: ResumablePeerTable | null;
 }
 
 const INITIAL: PeerSnapshot = {
@@ -58,19 +84,32 @@ const INITIAL: PeerSnapshot = {
   hostName: null,
   seats: 4,
   error: null,
+  resumable: null,
 };
 
 const START_TIMEOUT_MS = 15_000;
 const GUEST_TIMEOUT_MS = 25_000;
+/** Writing the room to localStorage more often than this buys nothing. */
+const SAVE_THROTTLE_MS = 1000;
+/** How long a guest keeps retrying a host that is mid-refresh. */
+const RECONNECT_BUDGET_MS = 90_000;
+/** One relay attempt, from socket to seat. */
+const ATTEMPT_TIMEOUT_MS = 6000;
+const RETRY_BASE_MS = 1200;
 
 function waitFor(
   store: GameStore,
   test: (snapshot: ClientSnapshot) => boolean,
   timeoutMs = START_TIMEOUT_MS,
+  abort?: () => boolean,
 ): Promise<ClientSnapshot | null> {
   return new Promise((resolve) => {
     const started = Date.now();
     const check = (): boolean => {
+      if (abort?.()) {
+        resolve(null);
+        return true;
+      }
       const snapshot = store.getSnapshot();
       if (test(snapshot)) {
         resolve(snapshot);
@@ -89,6 +128,12 @@ function waitFor(
   });
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
 class PeerSession {
   private snapshot: PeerSnapshot = INITIAL;
   private readonly listeners = new Set<() => void>();
@@ -97,6 +142,9 @@ class PeerSession {
   private relayGuest: RelayGuest | null = null;
   private wakeLock: WakeLockSentinel | null = null;
   private watchLink: (() => void) | null = null;
+  private watchStore: (() => void) | null = null;
+  private saveTimer: number | null = null;
+  private saved: SavedPeerSession | null = null;
 
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
@@ -116,10 +164,48 @@ class PeerSession {
     for (const listener of this.listeners) listener();
   }
 
+  // ----- boot ---------------------------------------------------------------
+
+  /**
+   * Picks up a table saved by this browser. Returns 'auto' when the save is
+   * fresh enough to reopen without asking (a reload), 'prompt' when it is old
+   * enough to deserve a choice, and null when there is nothing to resume.
+   */
+  boot(): 'auto' | 'prompt' | null {
+    const saved = loadSavedSession();
+    if (!saved) {
+      this.set({ resumable: null });
+      return null;
+    }
+    this.saved = saved;
+    if (isFresh(saved)) {
+      void this.resumeSaved();
+      return 'auto';
+    }
+    this.set({ ...INITIAL, resumable: resumableOf(saved) });
+    return 'prompt';
+  }
+
+  /** Title screen entry point: reopen the saved table now. */
+  resumeSaved(): Promise<void> {
+    const saved = this.saved ?? loadSavedSession();
+    if (!saved) return Promise.resolve();
+    this.saved = saved;
+    return saved.role === 'host' ? this.resumeHost(saved) : this.resumeGuest(saved);
+  }
+
+  /** Forget the saved table without touching the current session. */
+  discardSaved(): void {
+    this.saved = null;
+    clearSavedSession();
+    this.set({ resumable: null });
+  }
+
   // ----- host ---------------------------------------------------------------
 
   async hostTable(config: HostRoomConfig): Promise<void> {
     this.teardown();
+    this.discardSaved();
     const relay = relayBaseUrl();
     if (!relay) {
       this.set({
@@ -162,12 +248,79 @@ class PeerSession {
     });
     await this.holdWakeLock();
     this.watchConnection();
+    this.watchSaves();
 
-    await this.openRelay(relay, lobby.lobby.code);
+    await this.openRelay(relay, lobby.lobby.code, null);
+  }
+
+  /** Rebuilds the room from localStorage and puts the host back in its seat. */
+  private async resumeHost(saved: SavedPeerSession): Promise<void> {
+    const relay = relayBaseUrl();
+    if (!relay || !saved.roomSave) {
+      this.discardSaved();
+      this.fail('Multiplayer needs the relay, and this browser has no saved table to reopen.');
+      return;
+    }
+    this.teardown();
+    const host = new PeerHost();
+    this.host = host;
+    this.set({ ...INITIAL, role: 'host', phase: 'host-starting', room: saved.room });
+    host.attach(onlineClient);
+    activateOnline();
+
+    const ready = await waitFor(onlineClient, (snapshot) => snapshot.ready || snapshot.mismatch);
+    if (this.host !== host) return;
+    if (!ready?.ready) {
+      this.discardSaved();
+      this.fail('This browser could not reopen the table. Start a new one.');
+      return;
+    }
+
+    const summary = host.restore(saved.roomSave);
+    if (!summary) {
+      this.discardSaved();
+      this.fail('The saved table could not be read. Start a new one.');
+      return;
+    }
+
+    onlineClient.resume(summary.code, saved.token);
+    const seated = await waitFor(
+      onlineClient,
+      (snapshot) => snapshot.lobby !== null || snapshot.game !== null || snapshot.error !== null,
+    );
+    if (this.host !== host) return;
+    if (!seated?.lobby && !seated?.game) {
+      this.discardSaved();
+      this.fail(seated?.error?.message ?? 'That table could not be reopened.');
+      return;
+    }
+
+    this.saved = {
+      ...saved,
+      room: summary.code,
+      seat: seated.you ?? saved.seat,
+      token: seated.token ?? saved.token,
+      roomSave: host.exportRoom() ?? saved.roomSave,
+      savedAt: Date.now(),
+    };
+    saveSavedSession(this.saved);
+    this.set({
+      phase: 'host-ready',
+      room: summary.code,
+      hostName: summary.host,
+      seats: summary.seats,
+      relayCode: saved.relayCode,
+      relayLink: relayJoinUrl(saved.relayCode),
+      resumable: null,
+    });
+    await this.holdWakeLock();
+    this.watchConnection();
+    this.watchSaves();
+    await this.openRelay(relay, summary.code, saved.relayCode);
   }
 
   /** Publishes the code. Without it there is no way for guests to find the table. */
-  private async openRelay(base: string, room: string): Promise<void> {
+  private async openRelay(base: string, room: string, preferred: string | null): Promise<void> {
     const host = this.host;
     if (!host) return;
     const signaling = new RelayHost(base, room, {
@@ -180,19 +333,34 @@ class PeerSession {
       },
     });
     this.relayHost = signaling;
-    try {
-      const code = await signaling.start();
-      if (this.host !== host) {
+    // A resume already has guests waiting on the published code, so a relay blip
+    // is worth one more try before the table is declared unreachable.
+    const tries = preferred ? 2 : 1;
+    for (let attempt = 1; attempt <= tries; attempt += 1) {
+      try {
+        const code = await signaling.start(preferred);
+        if (this.host !== host) {
+          signaling.close();
+          return;
+        }
+        this.set({ relayCode: code, relayLink: relayJoinUrl(code) });
+        if (code !== preferred) this.rememberHost(code, room);
+        return;
+      } catch (error) {
+        if (this.host !== host) {
+          signaling.close();
+          return;
+        }
+        if (attempt < tries) {
+          await sleep(2500);
+          continue;
+        }
         signaling.close();
+        this.relayHost = null;
+        const detail = error instanceof Error ? error.message : String(error);
+        this.fail(detail);
         return;
       }
-      this.set({ relayCode: code, relayLink: relayJoinUrl(code) });
-    } catch (error) {
-      signaling.close();
-      this.relayHost = null;
-      if (this.host !== host) return;
-      const detail = error instanceof Error ? error.message : String(error);
-      this.fail(detail);
     }
   }
 
@@ -224,6 +392,7 @@ class PeerSession {
       this.fail('Multiplayer needs the relay, and this build has none configured.');
       return;
     }
+    this.discardSaved();
     this.set({ phase: 'guest-answering', error: null });
     const guest = new RelayGuest(base, code, {
       onFail: (reason) => {
@@ -266,9 +435,133 @@ class PeerSession {
       this.fail(seated?.error?.message ?? 'The table did not seat you. It may be full or already started.');
       return;
     }
-    this.set({ phase: 'connected', room });
+    const snap = onlineClient.getSnapshot();
+    this.saved = {
+      v: SESSION_VERSION,
+      role: 'guest',
+      relayCode: code,
+      room,
+      name,
+      seat: snap.you ?? 0,
+      token: snap.token ?? '',
+      savedAt: Date.now(),
+      roomSave: null,
+    };
+    saveSavedSession(this.saved);
+    this.set({ phase: 'connected', room, resumable: null });
     this.clearUrlCode();
     this.watchConnection();
+    this.watchSaves();
+  }
+
+  /**
+   * Walks a refreshed guest back into its seat. The host may still be reloading,
+   * so the relay answer is retried for a while before giving up.
+   */
+  private async resumeGuest(saved: SavedPeerSession): Promise<void> {
+    const base = relayBaseUrl();
+    if (!base) {
+      this.discardSaved();
+      this.fail('Multiplayer needs the relay, and this build has none configured.');
+      return;
+    }
+    this.teardown();
+    this.set({
+      ...INITIAL,
+      role: 'guest',
+      phase: 'guest-reconnecting',
+      relayCode: saved.relayCode,
+      room: saved.room,
+    });
+
+    const deadline = Date.now() + RECONNECT_BUDGET_MS;
+    let attempt = 0;
+    while (Date.now() < deadline) {
+      if (this.snapshot.phase !== 'guest-reconnecting') return;
+      attempt += 1;
+      const outcome = await this.tryGuestOnce(base, saved);
+      if (outcome === 'connected' || outcome === 'left') return;
+      if (outcome === 'gone') {
+        this.discardSaved();
+        this.fail('That seat is gone. Ask the host for a new code, or start a game of your own.');
+        return;
+      }
+      await sleep(Math.min(4000, RETRY_BASE_MS + attempt * 300));
+    }
+    this.discardSaved();
+    this.fail('Could not reach the host. Ask them to open the table again, then rejoin.');
+  }
+
+  private async tryGuestOnce(
+    base: string,
+    saved: SavedPeerSession,
+  ): Promise<'connected' | 'retry' | 'gone' | 'left'> {
+    let failure: string | null = null;
+    const guest = new RelayGuest(base, saved.relayCode, {
+      onFail: (reason) => {
+        failure = reason;
+      },
+      offerTimeoutMs: ATTEMPT_TIMEOUT_MS,
+    });
+    this.relayGuest = guest;
+    onlineClient.attachTransport(() => guest.socket());
+    activateOnline();
+    guest.connect();
+
+    const ready = await waitFor(
+      onlineClient,
+      (snapshot) => snapshot.ready || snapshot.mismatch,
+      ATTEMPT_TIMEOUT_MS + 1500,
+      () => failure !== null,
+    );
+    if (this.relayGuest !== guest) {
+      guest.close();
+      return 'left';
+    }
+    if (!ready?.ready) {
+      guest.close();
+      if (this.snapshot.phase !== 'guest-reconnecting') return 'left';
+      return 'retry';
+    }
+
+    const room = guest.room() ?? saved.room;
+    onlineClient.resume(room, saved.token);
+    const seated = await waitFor(
+      onlineClient,
+      (snapshot) => snapshot.lobby !== null || snapshot.game !== null || snapshot.error !== null,
+      ATTEMPT_TIMEOUT_MS,
+      () => this.snapshot.phase !== 'guest-reconnecting',
+    );
+    if (this.relayGuest !== guest) {
+      guest.close();
+      return 'left';
+    }
+    if (this.snapshot.phase !== 'guest-reconnecting') {
+      guest.close();
+      return 'left';
+    }
+    if (!seated?.lobby && !seated?.game) {
+      const code = seated?.error?.code;
+      guest.close();
+      if (code === 'INVALID_ROOM' || code === 'ROOM_NOT_FOUND' || code === 'NOT_IN_ROOM') return 'gone';
+      return 'retry';
+    }
+
+    const snap = onlineClient.getSnapshot();
+    this.saved = {
+      ...saved,
+      room,
+      seat: snap.you ?? saved.seat,
+      token: snap.token ?? saved.token,
+      savedAt: Date.now(),
+      roomSave: null,
+    };
+    saveSavedSession(this.saved);
+    this.set({ phase: 'connected', room, resumable: null });
+    this.clearUrlCode();
+    this.watchConnection();
+    this.watchSaves();
+    return 'connected';
   }
 
   // ----- shared -------------------------------------------------------------
@@ -277,6 +570,7 @@ class PeerSession {
   leave(): void {
     const wasPeer = this.active;
     this.teardown();
+    this.discardSaved();
     onlineClient.detachTransport();
     activateLocal();
     if (wasPeer) this.clearUrlCode();
@@ -300,12 +594,87 @@ class PeerSession {
     this.watchLink?.();
     const unsubscribe = onlineClient.subscribe(() => {
       if (this.snapshot.role === 'idle') return;
-      if (onlineClient.getSnapshot().link === 'closed') {
-        this.fail('The connection ended. Start a new table.');
+      if (onlineClient.getSnapshot().link !== 'closed') return;
+      // A guest with a saved seat waits for the host's tab to come back. The
+      // host's own loopback closing means the table is going away for good.
+      if (this.snapshot.role === 'guest' && this.saved && this.snapshot.phase === 'connected') {
+        void this.resumeGuest(this.saved);
+        return;
       }
+      this.fail('The connection ended. Start a new table.');
     });
     this.watchLink = unsubscribe;
   }
+
+  // ----- saving -------------------------------------------------------------
+
+  private watchSaves(): void {
+    this.watchStore?.();
+    this.watchStore = onlineClient.subscribe(() => this.scheduleSave());
+    window.addEventListener('pagehide', this.flushSave);
+    document.addEventListener('visibilitychange', this.onVisibility);
+  }
+
+  private onVisibility = (): void => {
+    if (document.visibilityState === 'hidden') this.flushSave();
+  };
+
+  private scheduleSave(): void {
+    if (this.saveTimer !== null) return;
+    this.saveTimer = window.setTimeout(() => {
+      this.saveTimer = null;
+      this.flushSave();
+    }, SAVE_THROTTLE_MS);
+  }
+
+  private flushSave = (): void => {
+    const saved = this.saved;
+    if (!saved) return;
+    const snap = onlineClient.getSnapshot();
+    if (!snap.token) return;
+    if (saved.role === 'host') {
+      const roomSave = this.host?.exportRoom();
+      if (!roomSave) return;
+      this.saved = {
+        ...saved,
+        room: snap.roomCode ?? saved.room,
+        seat: snap.you ?? saved.seat,
+        token: snap.token,
+        roomSave,
+        savedAt: Date.now(),
+      };
+    } else {
+      this.saved = {
+        ...saved,
+        room: snap.roomCode ?? saved.room,
+        seat: snap.you ?? saved.seat,
+        token: snap.token,
+        savedAt: Date.now(),
+      };
+    }
+    saveSavedSession(this.saved);
+  };
+
+  /** Records a host table that has a relay code but no snapshot yet. */
+  private rememberHost(relayCode: string, room: string): void {
+    const snap = onlineClient.getSnapshot();
+    if (snap.you === null || !snap.token) return;
+    const roomSave = this.host?.exportRoom() ?? null;
+    this.saved = {
+      v: SESSION_VERSION,
+      role: 'host',
+      relayCode,
+      room,
+      name: this.snapshot.hostName ?? '',
+      seat: snap.you,
+      token: snap.token,
+      savedAt: Date.now(),
+      roomSave,
+    };
+    saveSavedSession(this.saved);
+  }
+
+  // ----- wake lock and teardown --------------------------------------------
 
   /**
    * Phone nicety: keep the screen awake while this tab is the table. Failure is
@@ -331,6 +700,14 @@ class PeerSession {
   private teardown(): void {
     this.watchLink?.();
     this.watchLink = null;
+    this.watchStore?.();
+    this.watchStore = null;
+    if (this.saveTimer !== null) {
+      window.clearTimeout(this.saveTimer);
+      this.saveTimer = null;
+    }
+    window.removeEventListener('pagehide', this.flushSave);
+    document.removeEventListener('visibilitychange', this.onVisibility);
     this.relayHost?.close();
     this.relayHost = null;
     this.relayGuest?.close();
@@ -355,6 +732,16 @@ export const peer = new PeerSession();
 // a QA script read the peer state machine.
 if ((import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV && typeof window !== 'undefined') {
   (window as unknown as { __loracPeer?: PeerSession }).__loracPeer = peer;
+}
+
+function resumableOf(saved: SavedPeerSession): ResumablePeerTable {
+  return {
+    role: saved.role,
+    relayCode: saved.relayCode,
+    room: saved.room,
+    seat: saved.seat,
+    savedAt: saved.savedAt,
+  };
 }
 
 export type { HostRoomConfig };

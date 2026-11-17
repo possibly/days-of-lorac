@@ -90,18 +90,33 @@ export default function App(): JSX.Element {
     saveName(name);
   }, [name]);
 
-  // #code=... is a relay join link. Nothing else on the page knows about it.
+  // #code=... is a relay join link. Without one, boot looks for a table this
+  // browser saved, which is how a reload comes back into the same seat.
   useEffect(() => {
     if (peerBooted.current || fixtureMode) return;
     peerBooted.current = true;
-    if (!window.location.hash.includes('code=')) return;
-    if (peer.loadInviteFromUrl()) setScreen('peer-join');
+    const invited = window.location.hash.includes('code=');
+    if (!invited) {
+      const mode = peer.boot();
+      if (mode === 'auto') {
+        setBusyLabel('Reopening the table…');
+        setScreen('connecting');
+        return;
+      }
+      if (mode === 'prompt') return;
+    }
+    if (invited && peer.loadInviteFromUrl()) setScreen('peer-join');
   }, [fixtureMode]);
 
   // Peer phases own their screens until the room protocol takes over.
   useEffect(() => {
     if (peerState.phase === 'host-starting') {
-      setBusyLabel('Opening the table…');
+      setBusyLabel(peerState.room ? 'Reopening the table…' : 'Opening the table…');
+      setScreen('connecting');
+      return;
+    }
+    if (peerState.phase === 'guest-reconnecting') {
+      setBusyLabel('Reconnecting to the table…');
       setScreen('connecting');
       return;
     }
@@ -117,7 +132,7 @@ export default function App(): JSX.Element {
       if (message) pushToast(message, 'error');
       setScreen('title');
     }
-  }, [peerState.phase, peerState.error, pushToast]);
+  }, [peerState.phase, peerState.error, peerState.room, pushToast]);
 
   // ?diag=1 pins an on-device measurement panel over the game. Inert otherwise.
   useEffect(() => {
@@ -297,7 +312,11 @@ export default function App(): JSX.Element {
         <div className="parchment setup-panel busy-panel" role="status" aria-live="polite">
           <p className="eyebrow">Opening the table</p>
           <h1 className="panel-title">{busyLabel}</h1>
-          <p className="setup-note">This browser is the table. Nothing is uploaded.</p>
+          <p className="setup-note">
+            {peerState.role === 'host'
+              ? 'This browser is the table. Nothing is uploaded.'
+              : 'Game data goes straight between the devices. Nothing is uploaded.'}
+          </p>
           <span className={`spinner${snapshot.link === 'open' ? ' is-fast' : ''}`} aria-hidden="true" />
           <div className="setup-actions">
             <Button variant="ghost" onClick={goTitle}>Cancel</Button>
@@ -316,6 +335,13 @@ export default function App(): JSX.Element {
         onPeerJoin={() => { peer.leave(); setScreen('peer-join'); }}
         onRules={() => setRulesOpen(true)}
         clientVersion={GAME_VERSION}
+        resumable={peerState.resumable}
+        onResume={() => {
+          setBusyLabel('Reopening the table…');
+          setScreen('connecting');
+          void peer.resumeSaved();
+        }}
+        onDiscardResume={() => peer.discardSaved()}
       />
     );
   }
